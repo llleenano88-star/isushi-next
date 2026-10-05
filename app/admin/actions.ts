@@ -15,7 +15,7 @@ const Form = z.object({
 });
 
 export async function saveProduct(fd: FormData) {
-  const p = Form.safeParse(Object.fromEntries(fd));
+  const p = Form.safeParse(Object.fromEntries(fd.entries()));
   if (!p.success) return;
   const d = p.data; const sb = await supabaseSession(); // RLS: писать может только admin
   const row = {

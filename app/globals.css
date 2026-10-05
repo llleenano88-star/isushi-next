@@ -1,0 +1,6 @@
+@tailwind base; @tailwind components; @tailwind utilities;
+:root { --bg:#f4f3ef; --card:#fff; --ink:#1a1a1a; --mute:#888; }
+.dark-theme { --bg:#0f0f0f; --card:#1a1a1a; --ink:#f5f5f5; --mute:#9a9a9a; color-scheme: dark; }
+body { background: var(--bg); color: var(--ink); padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+.skeleton { @apply animate-pulse rounded-[20px] bg-black/10 dark:bg-white/10; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

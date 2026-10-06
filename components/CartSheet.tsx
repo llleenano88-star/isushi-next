@@ -32,14 +32,14 @@ export default function CartSheet() {
   return (
     <>
       {count > 0 && !open && (
-        <button onClick={() => setOpen(true)} className="fixed inset-x-4 bottom-[calc(76px+env(safe-area-inset-bottom))] z-40 mx-auto flex h-14 max-w-md items-center justify-between rounded-full bg-brand px-6 font-black text-black shadow-soft">
+        <button onClick={() => setOpen(true)} className="fixed inset-x-4 bottom-[calc(76px+env(safe-area-inset-bottom))] z-40 mx-auto flex h-14 max-w-md items-center justify-between rounded-full bg-brand px-6 font-black text-white shadow-soft">
           <span>Корзина · {count}</span><span>{total} ₽</span>
         </button>
       )}
       {open && <div className="fixed inset-0 z-[60] bg-black/50" onClick={() => setOpen(false)} />}
       <aside className={`fixed inset-x-0 bottom-0 z-[70] mx-auto max-h-[90vh] max-w-lg overflow-y-auto rounded-t-[32px] bg-bg p-4 pb-[calc(16px+env(safe-area-inset-bottom))] shadow-soft transition-transform duration-300 ease-spring ${open ? 'translate-y-0' : 'translate-y-full'}`} aria-hidden={!open}>
         <div className="mb-3 flex items-center justify-between">
-          {step === 'checkout' ? <button onClick={() => setStep('cart')} className="h-12 pr-4 text-sm font-bold text-orange-500">← К корзине</button> : <h2 className="text-2xl font-black">Корзина</h2>}
+          {step === 'checkout' ? <button onClick={() => setStep('cart')} className="h-12 pr-4 text-sm font-bold text-accent">← К корзине</button> : <h2 className="text-2xl font-black">Корзина</h2>}
           <button onClick={() => setOpen(false)} className="h-12 w-12 text-xl" aria-label="Закрыть">✕</button>
         </div>
         {items.length === 0 ? <p className="py-10 text-center text-mute">Пока пусто. Добавьте что-нибудь из меню.</p>
@@ -47,7 +47,7 @@ export default function CartSheet() {
             <>
               <div className="space-y-2">{items.map((it) => <Row key={it.key} it={it} />)}</div>
               <p className="mt-2 text-center text-xs text-mute">Смахните позицию влево, чтобы удалить</p>
-              <div className="mt-4 flex items-center justify-between rounded-[24px] bg-brand p-5 text-black"><span className="font-bold">Итого</span><span className="text-2xl font-black">{total} ₽</span></div>
+              <div className="mt-4 flex items-center justify-between rounded-[24px] bg-brand p-5 text-white"><span className="font-bold">Итого</span><span className="text-2xl font-black">{total} ₽</span></div>
               <button onClick={() => setStep('checkout')} className="mt-3 h-14 w-full rounded-full bg-black font-black text-white shadow-soft">Оформить заказ</button>
             </>
           ) : <Checkout />}

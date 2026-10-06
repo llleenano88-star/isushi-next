@@ -9,10 +9,10 @@ export default function Login() {
   };
   return (
     <div className="mx-auto max-w-sm py-10">
-      <h1 className="mb-6 text-3xl font-black">Вход</h1>
+      <h1 className="mb-6 font-display text-4xl font-bold uppercase text-accent">Вход</h1>
       <input type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Ваш email"
-        className="mb-3 h-14 w-full rounded-full bg-card px-6 font-semibold shadow-soft outline-none focus:ring-2 focus:ring-orange-400" />
-      <button onClick={submit} disabled={!email} className="h-14 w-full rounded-full bg-brand font-black text-black shadow-soft disabled:opacity-50">Получить ссылку для входа</button>
+        className="mb-3 h-14 w-full rounded-full bg-card px-6 font-semibold shadow-soft outline-none focus:ring-2 focus:ring-accent" />
+      <button onClick={submit} disabled={!email} className="h-14 w-full rounded-full bg-brand font-black text-white shadow-soft disabled:opacity-50">Получить ссылку для входа</button>
       {state === 'sent' && <p className="mt-4 text-sm text-mute">Письмо отправлено. Откройте ссылку из него на этом устройстве.</p>}
       {state === 'error' && <p className="mt-4 text-sm text-red-500">Не удалось отправить письмо. Проверьте адрес и повторите.</p>}
     </div>

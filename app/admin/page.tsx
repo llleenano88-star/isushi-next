@@ -26,10 +26,10 @@ export default async function Admin() {
     sb.from('orders').select('id,number,status,phone,customer_name,receive_type,address,total,created_at,iiko_order_id').order('created_at', { ascending: false }).limit(50),
     sb.from('products').select('id,name,is_available').order('name'),
   ]);
-  const btn = 'min-h-12 rounded-full bg-brand px-5 text-sm font-black text-black';
+  const btn = 'min-h-12 rounded-full bg-brand px-5 text-sm font-black text-white';
   return (
     <div className="py-6">
-      <h1 className="mb-4 text-3xl font-black">Заказы</h1>
+      <h1 className="mb-4 font-display text-4xl font-bold uppercase text-accent">Заказы</h1>
       <div className="space-y-3">
         {orders?.map((o) => (
           <form key={o.id} action={setStatus} className="flex flex-wrap items-center gap-3 rounded-[24px] bg-card p-4 shadow-soft">
@@ -49,7 +49,7 @@ export default async function Admin() {
           <form key={p.id} action={setAvailable} className="flex items-center gap-3 rounded-[20px] bg-card px-4 py-2 shadow-soft">
             <input type="hidden" name="id" value={p.id} /><input type="hidden" name="to" value={p.is_available ? '0' : '1'} />
             <span className={`flex-1 font-bold ${p.is_available ? '' : 'text-mute line-through'}`}>{p.name}</span>
-            <Link href={`/admin/products/${p.id}`} className="flex min-h-12 items-center px-3 text-sm font-bold text-orange-500">Изменить</Link>
+            <Link href={`/admin/products/${p.id}`} className="flex min-h-12 items-center px-3 text-sm font-bold text-accent">Изменить</Link>
             <button className={btn}>{p.is_available ? 'Скрыть' : 'Показать'}</button>
           </form>
         ))}

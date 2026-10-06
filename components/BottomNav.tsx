@@ -13,13 +13,13 @@ const UserIcon = () => <I><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 
 
 export default function BottomNav() {
   const count = useCart(selectCount); const setOpen = useCart((s) => s.setOpen); const path = usePathname();
-  const cls = (on: boolean) => `relative flex min-h-14 min-w-12 flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-bold transition-colors ${on ? 'text-orange-500' : 'text-mute'}`;
+  const cls = (on: boolean) => `relative flex min-h-14 min-w-12 flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-bold transition-colors ${on ? 'text-accent' : 'text-mute'}`;
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 flex border-t border-black/5 bg-card pb-[env(safe-area-inset-bottom)] dark:border-white/10">
       <Link href="/" className={cls(path === '/')}><MenuIcon />Меню</Link>
       <button onClick={() => setOpen(true)} className={cls(false)}>
         <CartIcon />Корзина
-        {count > 0 && <b className="absolute right-[26%] top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[11px] text-black">{count}</b>}
+        {count > 0 && <b className="absolute right-[26%] top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[11px] text-white">{count}</b>}
       </button>
       <Link href="/account" className={cls(path.startsWith('/account'))}><OrdersIcon />Заказы</Link>
       <Link href="/login" className={cls(path.startsWith('/login'))}><UserIcon />Профиль</Link>

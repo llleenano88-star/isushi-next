@@ -19,7 +19,7 @@ export default function PushToggle() {
   return (
     <div className="mb-4 flex items-center gap-3 rounded-[24px] bg-card p-4 shadow-soft">
       <p className="flex-1 text-sm font-semibold">{state === 'on' ? 'Уведомления о статусе заказа включены' : state === 'denied' ? 'Уведомления заблокированы в настройках браузера' : 'Получайте уведомления, когда статус заказа меняется'}</p>
-      {state === 'off' && <button onClick={enable} className="h-12 rounded-full bg-brand px-5 font-black text-black">Включить</button>}
+      {state === 'off' && <button onClick={enable} className="h-12 rounded-full bg-brand px-5 font-black text-white">Включить</button>}
     </div>
   );
 }

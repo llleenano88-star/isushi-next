@@ -4,12 +4,17 @@ export const revalidate = 60;
 export default function Home() {
   return (
     <>
-      <section className="my-4 rounded-[32px] bg-brand p-6 text-black shadow-soft sm:p-10">
-        <h1 className="text-3xl font-black leading-tight sm:text-5xl">Свежие суши<br />с доставкой к вам</h1>
-        <p className="mt-2 max-w-md text-sm font-semibold sm:text-base">Выберите роллы и сеты и оформите заказ за минуту, без регистрации.</p>
-        <a href="#menu" className="mt-5 inline-flex h-12 items-center rounded-full bg-black px-8 font-black text-white">Смотреть меню</a>
+      <section className="relative my-4 overflow-hidden rounded-[32px] bg-card px-6 py-10 shadow-soft sm:px-12 sm:py-16">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-blush" />
+        <div className="pointer-events-none absolute -bottom-16 right-24 h-40 w-40 rounded-full bg-[#dfe8bf] dark:bg-[#2f3a1c]" />
+        <div className="pointer-events-none absolute bottom-10 right-4 h-20 w-20 rounded-full bg-wine" />
+        <h1 className="relative font-display text-5xl font-bold uppercase leading-[0.95] tracking-tight text-accent sm:text-7xl">
+          Свежие суши<br /><span className="text-ink">с доставкой<br />к вам</span>
+        </h1>
+        <p className="relative mt-4 max-w-xs text-sm font-bold uppercase tracking-wide">Роллы, сеты и нигири. Заказ за минуту</p>
+        <a href="#menu" className="relative mt-6 inline-flex h-14 items-center rounded-full bg-brand px-8 font-black text-white shadow-soft">Смотреть меню →</a>
       </section>
-      <div id="menu" className="scroll-mt-16" />
+      <div id="menu" className="scroll-mt-32" />
       <Suspense fallback={<MenuSkeleton />}><MenuSection /></Suspense>
     </>
   );

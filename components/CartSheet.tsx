@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
-import Checkout from './Checkout';
+import Link from 'next/link';
+import { useRef, useState } from 'react';
 import { useCart, selectCount, selectTotal, type CartItem } from '@/lib/store/cart';
 
 function Row({ it }: { it: CartItem }) {
@@ -27,8 +27,6 @@ function Row({ it }: { it: CartItem }) {
 export default function CartSheet() {
   const items = useCart((s) => s.items); const open = useCart((s) => s.open); const setOpen = useCart((s) => s.setOpen);
   const count = useCart(selectCount); const total = useCart(selectTotal);
-  const [step, setStep] = useState<'cart' | 'checkout'>('cart');
-  useEffect(() => { if (!open) setStep('cart'); }, [open]);
   return (
     <>
       {count > 0 && !open && (
@@ -38,19 +36,15 @@ export default function CartSheet() {
       )}
       {open && <div className="fixed inset-0 z-[60] bg-black/50" onClick={() => setOpen(false)} />}
       <aside className={`fixed inset-x-0 bottom-0 z-[70] mx-auto max-h-[90vh] max-w-lg overflow-y-auto rounded-t-[32px] bg-bg p-4 pb-[calc(16px+env(safe-area-inset-bottom))] shadow-soft transition-transform duration-300 ease-spring ${open ? 'translate-y-0' : 'translate-y-full'}`} aria-hidden={!open}>
-        <div className="mb-3 flex items-center justify-between">
-          {step === 'checkout' ? <button onClick={() => setStep('cart')} className="h-12 pr-4 text-sm font-bold text-accent">← К корзине</button> : <h2 className="text-2xl font-black">Корзина</h2>}
-          <button onClick={() => setOpen(false)} className="h-12 w-12 text-xl" aria-label="Закрыть">✕</button>
-        </div>
-        {items.length === 0 ? <p className="py-10 text-center text-mute">Пока пусто. Добавьте что-нибудь из меню.</p>
-          : step === 'cart' ? (
-            <>
-              <div className="space-y-2">{items.map((it) => <Row key={it.key} it={it} />)}</div>
-              <p className="mt-2 text-center text-xs text-mute">Смахните позицию влево, чтобы удалить</p>
-              <div className="mt-4 flex items-center justify-between rounded-[24px] bg-brand p-5 text-white"><span className="font-bold">Итого</span><span className="text-2xl font-black">{total} ₽</span></div>
-              <button onClick={() => setStep('checkout')} className="mt-3 h-14 w-full rounded-full bg-black font-black text-white shadow-soft">Оформить заказ</button>
-            </>
-          ) : <Checkout />}
+        <div className="mb-3 flex items-center justify-between"><h2 className="font-display text-3xl font-bold text-accent">Корзина</h2><button onClick={() => setOpen(false)} className="h-12 w-12 text-xl" aria-label="Закрыть">✕</button></div>
+        {items.length === 0 ? <p className="py-10 text-center text-mute">Пока пусто. Добавьте что-нибудь из меню.</p> : (
+          <>
+            <div className="space-y-2">{items.map((it) => <Row key={it.key} it={it} />)}</div>
+            <p className="mt-2 text-center text-xs text-mute">Смахните позицию влево, чтобы удалить</p>
+            <div className="mt-4 flex items-center justify-between rounded-[24px] bg-card p-5 shadow-soft"><span className="font-bold">Итого</span><span className="font-display text-3xl font-bold text-accent">{total} ₽</span></div>
+            <Link href="/checkout" onClick={() => setOpen(false)} className="mt-3 flex h-14 items-center justify-center rounded-full bg-brand font-black text-white shadow-soft">Оформить заказ</Link>
+          </>
+        )}
       </aside>
     </>
   );

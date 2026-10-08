@@ -6,7 +6,7 @@ export default async function Account() {
   const { data: orders } = await sb.from('orders').select('id,number,status,total,created_at,order_items(name,variant_label,qty)').order('created_at', { ascending: false });
   return (
     <div className="py-6">
-      <h1 className="mb-4 font-display text-4xl font-bold uppercase text-accent">Мои заказы</h1>
+      <h1 className="mb-4 font-display text-4xl font-bold text-accent">Мои заказы</h1>
       <PushToggle />
       {!orders?.length && <p className="py-10 text-center text-mute">Заказов пока нет.</p>}
       <div className="space-y-3">

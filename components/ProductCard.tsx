@@ -16,7 +16,7 @@ export default function ProductCard({ p }: { p: Product }) {
   const add = useCart((s) => s.add); const [open, setOpen] = useState(false); const [flash, setFlash] = useState('');
   const single = p.variants.length === 1; const min = Math.min(...p.variants.map((v) => v.price));
   const buy = (e: React.MouseEvent, v: { label: string; price: number }) => {
-    e.stopPropagation(); add({ productId: p.id, name: p.name, label: v.label, price: v.price });
+    e.stopPropagation(); add({ productId: p.id, name: p.name, label: v.label, price: v.price, image: p.image_url });
     setFlash(v.label); setTimeout(() => setFlash(''), 900);
   };
   const buttons = (
@@ -35,7 +35,7 @@ export default function ProductCard({ p }: { p: Product }) {
         <Photo url={p.image_url} className="h-44 w-full" />
         <div className="flex flex-1 flex-col gap-1 p-4">
           <div className="flex items-baseline justify-between gap-2">
-            <h3 className="text-[15px] font-extrabold leading-tight">{p.name}</h3>
+            <h3 className="font-display text-lg font-bold leading-tight">{p.name}</h3>
             <span className="shrink-0 font-display text-lg font-bold text-accent">{single ? '' : 'от '}{min} ₽</span>
           </div>
           <p className="line-clamp-2 text-xs leading-snug text-mute">{p.description}</p>
@@ -51,7 +51,7 @@ export default function ProductCard({ p }: { p: Product }) {
               <button onClick={() => setOpen(false)} aria-label="Закрыть" className="absolute right-3 top-3 grid h-12 w-12 place-items-center rounded-full bg-card text-xl shadow-soft">✕</button>
             </div>
             <div className="space-y-3 p-5">
-              <h2 className="font-display text-3xl font-bold uppercase leading-tight text-accent">{p.name}</h2>
+              <h2 className="font-display text-3xl font-bold leading-tight text-accent">{p.name}</h2>
               {p.description && <p className="text-sm leading-relaxed text-mute">{p.description}</p>}
               {buttons}
             </div>

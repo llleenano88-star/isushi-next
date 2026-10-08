@@ -19,7 +19,7 @@ export default async function MenuSection() {
       </nav>
       {(prods ?? []).some((p) => p.is_new) && (
         <section className="pt-6">
-          <h2 className="mb-4 font-display text-3xl font-bold uppercase text-accent">Новинки</h2>
+          <h2 className="mb-4 font-display text-3xl font-bold text-accent">Новинки</h2>
           <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
             {(prods ?? []).filter((p) => p.is_new).map((p) => <div key={p.id} className="w-64 shrink-0"><ProductCard p={p as Product} /></div>)}
           </div>
@@ -27,7 +27,7 @@ export default async function MenuSection() {
       )}
       {cats.map((c) => (
         <section key={c.id} id={c.slug} className="scroll-mt-44 pt-6">
-          <h2 className="mb-4 font-display text-3xl font-bold uppercase text-accent">{c.name}</h2>
+          <h2 className="mb-4 font-display text-3xl font-bold text-accent">{c.name}</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {(prods ?? []).filter((p) => p.category_id === c.id).map((p) => <ProductCard key={p.id} p={p as Product} />)}
           </div>

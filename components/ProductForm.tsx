@@ -31,7 +31,7 @@ export default function ProductForm({ product: p, categories, action }: { produc
     <form action={action} className="space-y-3 py-6">
       <input type="hidden" name="id" value={p.id ?? ''} /><input type="hidden" name="image_url" value={img} />
       <input type="hidden" name="variants" value={JSON.stringify(vars)} />
-      <h1 className="font-display text-4xl font-bold uppercase text-accent">{p.id ? 'Изменить позицию' : 'Новая позиция'}</h1>
+      <h1 className="font-display text-4xl font-bold text-accent">{p.id ? 'Изменить позицию' : 'Новая позиция'}</h1>
       {p.iiko_id && <p className="rounded-2xl bg-card p-3 text-sm text-mute">Эта позиция из iiko: название, описание, цены и категория обновляются из iiko при синхронизации. Своё фото, «Новинка» и скрытие сохраняются.</p>}
       <div className="flex items-center gap-4">
         <div className="h-28 w-28 shrink-0 rounded-[20px] bg-black/5 bg-cover bg-center dark:bg-white/10" style={img ? { backgroundImage: `url(${img})` } : undefined} />

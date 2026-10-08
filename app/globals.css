@@ -1,6 +1,6 @@
 @tailwind base; @tailwind components; @tailwind utilities;
-:root { --bg:#f4f0ec; --card:#fff; --ink:#1a1a1a; --mute:#767676; --accent:#b3144a; --blush:#f8cfdb; }
-.dark-theme { --bg:#150a0e; --card:#24111a; --ink:#f6eef0; --mute:#b79ca6; --accent:#ff7a9f; --blush:#4a1a2b; color-scheme: dark; }
+:root { --bg:#f6f1ea; --card:#fffdfa; --ink:#241518; --mute:#7b6b6e; --accent:#8a1538; --blush:#f3dfe0; --leaf:#4f6f2f; }
+.dark-theme { --bg:#170b0f; --card:#26121a; --ink:#f6eef0; --mute:#b79ca6; --accent:#ff8fae; --blush:#3a1822; --leaf:#5f8a3a; color-scheme: dark; }
 body { background: var(--bg); color: var(--ink); padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
 .skeleton { @apply animate-pulse rounded-[20px] bg-black/10 dark:bg-white/10; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

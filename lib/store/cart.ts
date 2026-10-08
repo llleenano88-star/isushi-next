@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type CartItem = { key: string; productId: string; name: string; label: string; price: number; qty: number };
+export type CartItem = { key: string; productId: string; name: string; label: string; price: number; qty: number; image?: string | null };
 type State = {
   items: CartItem[]; open: boolean;
   add: (i: Omit<CartItem, 'key' | 'qty'>) => void;

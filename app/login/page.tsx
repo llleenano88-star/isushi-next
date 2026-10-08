@@ -8,8 +8,8 @@ export default function Login() {
     setState(error ? 'error' : 'sent');
   };
   return (
-    <div className="mx-auto max-w-sm py-10">
-      <h1 className="mb-6 font-display text-4xl font-bold uppercase text-accent">Вход</h1>
+    <div className="mx-auto my-6 max-w-sm rounded-[28px] bg-card p-6 shadow-soft">
+      <h1 className="mb-6 font-display text-4xl font-bold text-accent">Вход</h1>
       <input type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Ваш email"
         className="mb-3 h-14 w-full rounded-full bg-card px-6 font-semibold shadow-soft outline-none focus:ring-2 focus:ring-accent" />
       <button onClick={submit} disabled={!email} className="h-14 w-full rounded-full bg-brand font-black text-white shadow-soft disabled:opacity-50">Получить ссылку для входа</button>

@@ -1,38 +1,55 @@
 import { supabase } from '@/lib/supabase/server';
-import ProductCard, { type Product } from './ProductCard';
+import { CATEGORY_IMAGES } from '@/lib/content';
+import CategoryBlock from './CategoryBlock';
+import type { Product } from './ProductCard';
 
 export function MenuSkeleton() {
-  return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }, (_, i) => <div key={i} className="skeleton h-72" />)}</div>;
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      {Array.from({ length: 4 }, (_, i) => (
+        <div key={i} className="skeleton h-36" />
+      ))}
+    </div>
+  );
 }
 
 export default async function MenuSection() {
   const db = supabase();
   const [{ data: cats }, { data: prods }] = await Promise.all([
     db.from('categories').select('id,name,slug').order('sort_order'),
-    db.from('products').select('id,category_id,name,description,image_url,is_new,variants').eq('is_available', true),
+    db
+      .from('products')
+      .select('id,category_id,name,description,image_url,is_new,variants')
+      .eq('is_available', true),
   ]);
-  if (!cats?.length) return <p className="py-16 text-center text-mute">Меню пока пустое. Запустите миграцию 001_init.sql.</p>;
+
+  if (!cats?.length) return <p className="py-16 text-center text-mute">Меню пока пустое.</p>;
+
   return (
     <>
-      <nav className="sticky top-[calc(100px+env(safe-area-inset-top))] z-30 -mx-4 flex gap-2 overflow-x-auto bg-bg/90 px-4 py-2 backdrop-blur [scrollbar-width:none]">
-        {cats.map((c) => <a key={c.id} href={`#${c.slug}`} className="flex min-h-12 shrink-0 items-center rounded-full bg-blush px-5 text-xs font-extrabold uppercase tracking-wide text-accent">{c.name}</a>)}
+      <nav className="sticky top-[calc(72px+env(safe-area-inset-top))] z-30 -mx-4 flex gap-2 overflow-x-auto bg-bg/90 px-4 py-2 backdrop-blur [scrollbar-width:none]">
+        {cats.map((c) => (
+          <a
+            key={c.id}
+            href={`#${c.slug}`}
+            className="flex h-11 shrink-0 items-center rounded-lg bg-brand px-6 text-sm font-bold lowercase text-white"
+          >
+            {c.name}
+          </a>
+        ))}
       </nav>
-      {(prods ?? []).some((p) => p.is_new) && (
-        <section className="pt-6">
-          <h2 className="mb-4 font-display text-3xl font-bold text-accent">Новинки</h2>
-          <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
-            {(prods ?? []).filter((p) => p.is_new).map((p) => <div key={p.id} className="w-64 shrink-0"><ProductCard p={p as Product} /></div>)}
-          </div>
-        </section>
-      )}
-      {cats.map((c) => (
-        <section key={c.id} id={c.slug} className="scroll-mt-44 pt-6">
-          <h2 className="mb-4 font-display text-3xl font-bold text-accent">{c.name}</h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {(prods ?? []).filter((p) => p.category_id === c.id).map((p) => <ProductCard key={p.id} p={p as Product} />)}
-          </div>
-        </section>
-      ))}
+      {cats.map((c) => {
+        const list = (prods ?? []).filter((p) => p.category_id === c.id) as Product[];
+        return list.length ? (
+          <CategoryBlock
+            key={c.id}
+            slug={c.slug}
+            name={c.name}
+            image={CATEGORY_IMAGES[c.name.toLowerCase()]}
+            products={list}
+          />
+        ) : null;
+      })}
     </>
   );
 }

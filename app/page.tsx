@@ -1,42 +1,27 @@
 import { Suspense } from 'react';
+import Banners from '@/components/Banners';
 import MenuSection, { MenuSkeleton } from '@/components/MenuSection';
-import Reviews from '@/components/Reviews';
-import { HERO, PROMO } from '@/lib/content';
+import CartSection from '@/components/CartSection';
+import { getSettings } from '@/lib/settings';
 export const revalidate = 60;
 
-const bg = (u: string) => (u ? { backgroundImage: `url(${u})` } : undefined);
-export default function Home() {
+export default async function Home() {
+  const { banners, categoryImages, about, mapEmbed } = await getSettings();
   return (
-    <>
-      <section className="relative my-4 grid items-center gap-6 overflow-hidden rounded-[32px] bg-card px-6 py-10 shadow-soft md:grid-cols-2 md:px-12 md:py-16">
-        <div className="relative z-10">
-          <h1 className="font-display text-5xl font-extrabold leading-[1.02] sm:text-6xl">{HERO.title}<br /><span className="text-accent">{HERO.accent}</span></h1>
-          <p className="mt-4 max-w-sm text-sm font-semibold text-mute sm:text-base">{HERO.text}</p>
-          <a href="#menu" className="mt-6 inline-flex h-14 items-center rounded-full bg-brand px-8 font-black text-white shadow-soft">Смотреть меню →</a>
-        </div>
-        <div className="relative min-h-48 md:min-h-80">
-          {HERO.image ? <div className="absolute inset-0 rounded-[28px] bg-cover bg-center" style={bg(HERO.image)} /> : (
-            <>
-              <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-blush md:h-72 md:w-72" />
-              <div className="absolute bottom-0 left-8 h-32 w-32 rounded-full bg-[#dfe8c8] dark:bg-[#2a3a1a] md:h-44 md:w-44" />
-              <div className="absolute bottom-6 right-12 h-16 w-16 rounded-full bg-wine" />
-            </>
-          )}
+    <div className="py-3">
+      <Banners banners={banners} />
+      <div id="menu" className="mt-4 scroll-mt-24" />
+      <Suspense fallback={<MenuSkeleton />}><MenuSection categoryImages={categoryImages} /></Suspense>
+      <CartSection />
+      <section className="rounded-[28px] bg-card p-6 shadow-soft sm:p-10">
+        <h2 className="mb-4 text-center text-3xl font-extrabold">{about.title}</h2>
+        <div className="mx-auto max-w-3xl space-y-3 text-sm leading-relaxed">
+          {about.blocks.map((t, i) => <p key={i} className={i === 0 ? 'font-bold' : ''}>{t}</p>)}
+          {about.list.length > 0 && <><p className="font-bold">{about.listTitle}</p><ul className="list-disc space-y-1 pl-6">{about.list.map((t) => <li key={t}>{t}</li>)}</ul></>}
+          {about.outro && <p>{about.outro}</p>}
         </div>
       </section>
-      <div id="menu" className="scroll-mt-32" />
-      <Suspense fallback={<MenuSkeleton />}><MenuSection /></Suspense>
-      <section className="my-10 grid items-center gap-6 rounded-[32px] bg-card p-6 shadow-soft md:grid-cols-2 md:p-10">
-        <div className="relative aspect-[4/3] overflow-hidden rounded-[24px] bg-blush bg-cover bg-center" style={bg(PROMO.image)}>
-          {!PROMO.image && <span className="absolute inset-0 grid place-items-center text-7xl opacity-60" aria-hidden>🍱</span>}
-        </div>
-        <div>
-          <h2 className="font-display text-3xl font-extrabold leading-tight sm:text-4xl">{PROMO.title} <span className="text-accent">{PROMO.accent}</span></h2>
-          <p className="mt-3 text-sm text-mute">{PROMO.text}</p>
-          <a href="#menu" className="mt-5 inline-flex h-12 items-center rounded-full bg-ink px-7 font-black text-bg">Заказать сейчас</a>
-        </div>
-      </section>
-      <Reviews />
-    </>
+      {mapEmbed && <iframe src={mapEmbed} title="Карта" loading="lazy" className="mt-6 h-72 w-full rounded-[28px] border-0" />}
+    </div>
   );
 }

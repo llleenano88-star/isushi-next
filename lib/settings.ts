@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase/server';
-import { ABOUT, BANNERS, CATEGORY_IMAGES, MAP_EMBED } from '@/lib/content';
+import { ABOUT, BANNERS, CATEGORY_IMAGES, MAP_EMBED, DELIVERY_TIME } from '@/lib/content';
 
 export type Banner = { image: string; href?: string };
 export type About = typeof ABOUT;
@@ -13,5 +13,6 @@ export async function getSettings() {
     categoryImages: (m.category_images as Record<string, string> | undefined) ?? CATEGORY_IMAGES,
     about: (m.about as About | undefined) ?? ABOUT,
     mapEmbed: (m.map_embed as string | undefined) ?? MAP_EMBED,
+    deliveryTime: (m.delivery_time as string | undefined) ?? DELIVERY_TIME,
   };
 }

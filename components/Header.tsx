@@ -1,35 +1,28 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useCart, selectCount } from '@/lib/store/cart';
+import { useCart, selectCount, selectTotal } from '@/lib/store/cart';
+import CartBadge from './CartBadge';
 
 export default function Header() {
-  const [dark, setDark] = useState(false); const count = useCart(selectCount);
-  useEffect(() => setDark(document.documentElement.classList.contains('dark-theme')), []);
-  const toggle = () => {
-    const v = document.documentElement.classList.toggle('dark-theme');
-    setDark(v); try { localStorage.setItem('theme', v ? 'dark' : 'light'); } catch {}
-  };
-  const round = 'relative grid h-12 w-12 place-items-center rounded-full text-lg';
-  const cart = (cls: string) => (
-    <Link href="/#cart" aria-label="Корзина" className={`${round} ${cls}`}>
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 8h14l-1 12H6z" /><path d="M9 8a3 3 0 0 1 6 0" /></svg>
-      {count > 0 && <b className="absolute right-1 top-1 grid h-5 min-w-5 place-items-center rounded-full bg-wine px-1 text-[11px] text-white">{count}</b>}
-    </Link>
-  );
+  const [m, setM] = useState(false); useEffect(() => setM(true), []);
+  const rawCount = useCart(selectCount); const rawTotal = useCart(selectTotal);
+  const count = m ? rawCount : 0; const total = m ? rawTotal : 0;
   return (
-    <header className="sticky top-0 z-40 bg-bg/90 pb-2 pt-[env(safe-area-inset-top)] backdrop-blur">
-      <div className="mx-auto max-w-6xl px-4 pt-2">
-        <div className="grid h-14 grid-cols-[1fr_auto_1fr] items-center rounded-full bg-card px-2 shadow-soft">
-          <nav className="hidden items-center gap-6 pl-5 text-xs font-extrabold uppercase tracking-wide md:flex">
-            <Link href="/">Меню</Link><Link href="/account">Заказы</Link><Link href="/login">Профиль</Link>
-          </nav>
-          {cart('justify-self-start md:hidden')}
-          <Link href="/" className="text-center text-xl font-extrabold tracking-wide">ISUSHI<span className="text-accent">CLUB</span></Link>
-          <div className="flex items-center justify-self-end">
-            {cart('hidden md:grid')}
-            <button onClick={toggle} aria-label="Сменить тему" className={round}>{dark ? '☀️' : '🌙'}</button>
-          </div>
+    <header className="sticky top-0 z-40 bg-bg/90 pt-[env(safe-area-inset-top)] backdrop-blur">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4">
+        <Link href="/" className="text-xl font-extrabold tracking-wide">ISUSHI<span className="text-accent">CLUB</span></Link>
+        <nav className="hidden items-center gap-6 text-sm font-bold md:flex">
+          <Link href="/#menu">Меню</Link><Link href="/account">Заказы</Link><Link href="/login">Профиль</Link>
+        </nav>
+        <div className="ml-auto">
+          <Link href="/#cart" aria-label="Корзина" className="flex h-11 items-center gap-3 rounded-full bg-brand px-4 text-sm font-extrabold text-white">
+            <span className="relative flex">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 8h14l-1 12H6z" /><path d="M9 8a3 3 0 0 1 6 0" /></svg>
+              <CartBadge count={count} />
+            </span>
+            <span className="hidden sm:inline">Корзина</span>{count > 0 && <span>{total} ₽</span>}
+          </Link>
         </div>
       </div>
     </header>

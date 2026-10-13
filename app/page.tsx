@@ -6,13 +6,13 @@ import { getSettings } from '@/lib/settings';
 export const revalidate = 60;
 
 export default async function Home() {
-  const { banners, categoryImages, about, mapEmbed } = await getSettings();
+  const { banners, categoryImages, about, mapEmbed, deliveryTime } = await getSettings();
   return (
     <div className="py-3">
       <Banners banners={banners} />
       <div id="menu" className="mt-4 scroll-mt-24" />
       <Suspense fallback={<MenuSkeleton />}><MenuSection categoryImages={categoryImages} /></Suspense>
-      <CartSection />
+      <CartSection deliveryTime={deliveryTime} />
       <section className="rounded-[28px] bg-card p-6 shadow-soft sm:p-10">
         <h2 className="mb-4 text-center text-3xl font-extrabold">{about.title}</h2>
         <div className="mx-auto max-w-3xl space-y-3 text-sm leading-relaxed">

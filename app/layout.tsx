@@ -12,13 +12,10 @@ const font = Montserrat({ subsets: ['latin', 'cyrillic'], weight: ['400', '500',
 export const metadata: Metadata = { title: 'iSushiClub — доставка роллов, суши и пиццы', manifest: '/manifest.json', appleWebApp: { capable: true, title: 'iSushi' } };
 export const viewport: Viewport = { themeColor: '#2f6b2e', viewportFit: 'cover' };
 
-// Применяется до рендера: тёмная тема без вспышки
-const themeScript = `try{if(localStorage.getItem('theme')==='dark')document.documentElement.classList.add('dark-theme')}catch(e){}`;
-
+// Тёмной темы нет: сайт всегда светлый
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ru" className={font.variable} suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
+    <html lang="ru" className={font.variable}>
       <body className="font-sans antialiased">
         <Header />
         <main className="mx-auto max-w-6xl px-4">{children}<PWAInstallPrompt /></main>

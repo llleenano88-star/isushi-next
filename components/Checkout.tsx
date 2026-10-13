@@ -7,7 +7,7 @@ const Check = ({ label, checked, onChange }: { label: string; checked: boolean; 
   <label className="flex min-h-12 items-center gap-2 text-xs font-semibold text-mute"><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-5 w-5 accent-[#2f6b2e]" />{label}</label>
 );
 
-export default function Checkout({ onDone }: { onDone: (number: string) => void }) {
+export default function Checkout({ onDone, deliveryTime }: { onDone: (number: string) => void; deliveryTime?: string }) {
   const items = useCart((s) => s.items); const total = useCart(selectTotal); const key = useRef(crypto.randomUUID());
   const [receive, setReceive] = useState<'pickup' | 'delivery'>('delivery');
   const [f, setF] = useState({ name: '', phone: '', street: '', apt: '', floor: '', intercom: '', time: '', comment: '' });
@@ -70,6 +70,7 @@ export default function Checkout({ onDone }: { onDone: (number: string) => void 
       <div className="flex flex-col gap-2 sm:flex-row">{payBtn('card', receive === 'delivery' ? 'Переводом при получении' : 'Картой')}{payBtn('cash', 'Наличными')}</div>
       {siteKey && <div ref={box} className="mt-4 flex justify-center" />}
       {msg && <p className="mt-3 text-sm text-red-500">{msg}</p>}
+      {deliveryTime && <p className="mt-4 text-center text-sm text-mute">{deliveryTime}</p>}
       <button onClick={send} disabled={busy || !can} className="mt-5 h-14 w-full rounded-xl bg-brand text-lg font-bold lowercase text-white disabled:opacity-50">{busy ? 'Отправляем…' : `подтвердить заказ · ${total} ₽`}</button>
     </div>
   );

@@ -3,9 +3,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Checkout from './Checkout';
 import { useCart, selectTotal } from '@/lib/store/cart';
+import { DELIVERY_TIME } from '@/lib/content';
 
-export default function CartSection() {
+export default function CartSection({ deliveryTime }: { deliveryTime?: string }) {
   const items = useCart((s) => s.items); const setQty = useCart((s) => s.setQty); const remove = useCart((s) => s.remove); const total = useCart(selectTotal);
+  const dt = deliveryTime ?? DELIVERY_TIME;
   const [mounted, setMounted] = useState(false); useEffect(() => setMounted(true), []);
   const [form, setForm] = useState(false); const [done, setDone] = useState('');
   const finish = () => { useCart.setState({ items: [] }); setDone(''); setForm(false); };
@@ -21,6 +23,7 @@ export default function CartSection() {
       </div>
     </section>
   );
+  const step = 'grid h-9 w-9 place-items-center rounded-full bg-blush text-lg font-black text-accent sm:h-11 sm:w-11';
   return (
     <section id="cart" className="scroll-mt-24 py-10">
       <h2 className="inline-block rounded-xl bg-brand px-8 py-3 text-2xl font-medium lowercase text-white">корзина</h2>
@@ -28,22 +31,28 @@ export default function CartSection() {
         <>
           <ul className="mt-5 space-y-3">
             {items.map((it) => (
-              <li key={it.key} className="flex items-center gap-2 rounded-2xl bg-card p-2 shadow-soft">
+              <li key={it.key} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl bg-card p-2 shadow-soft">
                 <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-blush bg-cover bg-center" style={it.image ? { backgroundImage: `url(${it.image})` } : undefined}>{!it.image && <span aria-hidden>🍣</span>}</div>
-                <div className="min-w-0 flex-1"><div className="truncate font-extrabold">{it.name}</div><div className="text-xs text-mute">{it.label}</div></div>
-                <div className="flex items-center">
-                  <button onClick={() => setQty(it.key, it.qty - 1)} aria-label="Меньше" className="grid h-11 w-11 place-items-center rounded-full bg-blush text-lg font-black text-accent">−</button>
-                  <b className="w-6 text-center">{it.qty}</b>
-                  <button onClick={() => setQty(it.key, it.qty + 1)} aria-label="Больше" className="grid h-11 w-11 place-items-center rounded-full bg-blush text-lg font-black text-accent">+</button>
+                <div className="min-w-[5.5rem] flex-1">
+                  <div title={it.name} className="line-clamp-2 break-words text-sm font-extrabold leading-tight">{it.name}</div>
+                  <div className="mt-0.5 text-xs text-mute">{it.label}</div>
                 </div>
-                <b className="w-20 text-right text-sm sm:text-base">{it.price * it.qty} руб.</b>
-                <button onClick={() => remove(it.key)} aria-label="Удалить" className="grid h-12 w-12 place-items-center text-xl">✕</button>
+                <div className="ml-auto flex shrink-0 items-center gap-1">
+                  <div className="flex items-center">
+                    <button onClick={() => setQty(it.key, it.qty - 1)} aria-label="Меньше" className={step}>−</button>
+                    <b className="w-5 text-center text-sm sm:w-6">{it.qty}</b>
+                    <button onClick={() => setQty(it.key, it.qty + 1)} aria-label="Больше" className={step}>+</button>
+                  </div>
+                  <b className="min-w-[3.5rem] whitespace-nowrap text-right text-sm">{it.price * it.qty} руб.</b>
+                  <button onClick={() => remove(it.key)} aria-label="Удалить" className="grid h-9 w-9 place-items-center text-lg sm:h-11 sm:w-11">✕</button>
+                </div>
               </li>
             ))}
           </ul>
           <p className="mt-4 text-right text-xl font-extrabold">Итого: {total} руб.</p>
+          {dt && <p className="mt-3 text-center text-sm text-mute">{dt}</p>}
           {!form && <button onClick={() => setForm(true)} className="mx-auto mt-4 block rounded-xl bg-brand px-10 py-4 text-xl font-medium lowercase text-white">оформить заказ</button>}
-          {form && <Checkout onDone={setDone} />}
+          {form && <Checkout onDone={setDone} deliveryTime={dt} />}
         </>
       )}
     </section>

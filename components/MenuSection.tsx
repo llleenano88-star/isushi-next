@@ -1,55 +1,29 @@
 import { supabase } from '@/lib/supabase/server';
-import { CATEGORY_IMAGES } from '@/lib/content';
 import CategoryBlock from './CategoryBlock';
+import CategoryNav from './CategoryNav';
 import type { Product } from './ProductCard';
 
 export function MenuSkeleton() {
-  return (
-    <div className="grid gap-6 md:grid-cols-2">
-      {Array.from({ length: 4 }, (_, i) => (
-        <div key={i} className="skeleton h-36" />
-      ))}
-    </div>
-  );
+  return <div className="grid grid-cols-2 gap-4 pt-8 md:grid-cols-4">{Array.from({ length: 8 }, (_, i) => <div key={i} className="skeleton aspect-[3/4]" />)}</div>;
 }
 
-export default async function MenuSection() {
+export default async function MenuSection({ categoryImages }: { categoryImages: Record<string, string> }) {
   const db = supabase();
   const [{ data: cats }, { data: prods }] = await Promise.all([
     db.from('categories').select('id,name,slug').order('sort_order'),
-    db
-      .from('products')
-      .select('id,category_id,name,description,image_url,is_new,variants')
-      .eq('is_available', true),
+    db.from('products').select('id,category_id,name,description,image_url,is_new,variants').eq('is_available', true),
   ]);
-
   if (!cats?.length) return <p className="py-16 text-center text-mute">Меню пока пустое.</p>;
-
+  const all = (prods ?? []) as (Product & { category_id: string })[];
+  const news = all.filter((p) => p.is_new);
+  const sections = [
+    ...(news.length ? [{ id: 'new', name: 'Новинки', image: categoryImages['новинки'], list: news }] : []),
+    ...cats.map((c) => ({ id: c.slug, name: c.name, image: categoryImages[c.name.toLowerCase()], list: all.filter((p) => p.category_id === c.id) })).filter((s) => s.list.length),
+  ];
   return (
     <>
-      <nav className="sticky top-[calc(72px+env(safe-area-inset-top))] z-30 -mx-4 flex gap-2 overflow-x-auto bg-bg/90 px-4 py-2 backdrop-blur [scrollbar-width:none]">
-        {cats.map((c) => (
-          <a
-            key={c.id}
-            href={`#${c.slug}`}
-            className="flex h-11 shrink-0 items-center rounded-lg bg-brand px-6 text-sm font-bold lowercase text-white"
-          >
-            {c.name}
-          </a>
-        ))}
-      </nav>
-      {cats.map((c) => {
-        const list = (prods ?? []).filter((p) => p.category_id === c.id) as Product[];
-        return list.length ? (
-          <CategoryBlock
-            key={c.id}
-            slug={c.slug}
-            name={c.name}
-            image={CATEGORY_IMAGES[c.name.toLowerCase()]}
-            products={list}
-          />
-        ) : null;
-      })}
+      <CategoryNav items={sections.map((s) => ({ id: s.id, name: s.name }))} />
+      {sections.map((s) => <CategoryBlock key={s.id} slug={s.id} name={s.name} image={s.image} products={s.list} />)}
     </>
   );
 }

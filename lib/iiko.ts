@@ -22,7 +22,7 @@ export const fetchNomenclature = () => iiko('/api/1/nomenclature', { organizatio
 export async function createDelivery(o: { number: string; phone: string; name: string; receiveType: string; address?: string; comment?: string; paymentMethod: string;
   items: { iikoId: string; sizeId?: string | null; price: number; qty: number }[] }) {
   const delivery = o.receiveType === 'delivery';
-  const comment = [o.comment, delivery && o.address && `Адрес: ${o.address}`, `Оплата: ${o.paymentMethod === 'cash' ? 'наличными' : 'картой курьеру'}`].filter(Boolean).join('. ');
+  const comment = [o.comment, delivery && o.address && `Адрес: ${o.address}`, `Оплата: ${o.paymentMethod === 'cash' ? 'наличными' : 'безналично при получении (карта/перевод)'}`].filter(Boolean).join('. ');
   const res = await iiko('/api/1/deliveries/create', {
     organizationId: ORG(), terminalGroupId: process.env.IIKO_TERMINAL_GROUP_ID,
     order: {

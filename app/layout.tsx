@@ -6,6 +6,8 @@ import BottomNav from '@/components/BottomNav';
 import CartSheet from '@/components/CartSheet';
 import ScrollTop from '@/components/ScrollTop';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
+import ExtrasPrompt from '@/components/ExtrasPrompt';
+import { getSettings } from '@/lib/settings';
 
 const font = Montserrat({ subsets: ['latin', 'cyrillic'], weight: ['400', '500', '600', '700', '800', '900'], variable: '--font-montserrat' });
 
@@ -13,7 +15,8 @@ export const metadata: Metadata = { title: 'iSushiClub — доставка ро
 export const viewport: Viewport = { themeColor: '#2f6b2e', viewportFit: 'cover' };
 
 // Тёмной темы нет: сайт всегда светлый
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const { cart } = await getSettings();
   return (
     <html lang="ru" className={font.variable}>
       <body className="font-sans antialiased">
@@ -22,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ScrollTop />
         <CartSheet />
         <BottomNav />
+        <ExtrasPrompt extras={cart.extras.filter((e) => e.active)} />
       </body>
     </html>
   );

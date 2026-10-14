@@ -1,24 +1,27 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type CartItem = { key: string; productId: string; name: string; label: string; price: number; qty: number; image?: string | null };
+export type CartItem = { key: string; productId: string; name: string; label: string; price: number; qty: number; image?: string | null; extra?: boolean };
 type State = {
-  items: CartItem[]; open: boolean;
+  items: CartItem[]; open: boolean; askExtras: boolean;
   add: (i: Omit<CartItem, 'key' | 'qty'>) => void;
   setQty: (key: string, qty: number) => void;
   remove: (key: string) => void;
   setOpen: (v: boolean) => void;
+  setAsk: (v: boolean) => void;
 };
 export const useCart = create<State>()(persist((set) => ({
-  items: [], open: false,
+  items: [], open: false, askExtras: false,
   add: (i) => set((s) => {
-    const key = `${i.productId}:${i.label}`;
+    const key = i.extra ? `x:${i.productId}` : `${i.productId}:${i.label}`;
     const ex = s.items.find((x) => x.key === key);
-    return { items: ex ? s.items.map((x) => x.key === key ? { ...x, qty: x.qty + 1 } : x) : [...s.items, { ...i, key, qty: 1 }] };
+    const first = !i.extra && !s.items.some((x) => !x.extra); // первое блюдо в пустой корзине: предложим допы
+    return { items: ex ? s.items.map((x) => x.key === key ? { ...x, qty: x.qty + 1 } : x) : [...s.items, { ...i, key, qty: 1 }], ...(first ? { askExtras: true } : {}) };
   }),
   setQty: (key, qty) => set((s) => ({ items: qty <= 0 ? s.items.filter((x) => x.key !== key) : s.items.map((x) => x.key === key ? { ...x, qty } : x) })),
   remove: (key) => set((s) => ({ items: s.items.filter((x) => x.key !== key) })),
   setOpen: (open) => set({ open }),
+  setAsk: (askExtras) => set({ askExtras }),
 }), { name: 'isushi-cart', partialize: (s) => ({ items: s.items }) }));
 
 export const selectCount = (s: State) => s.items.reduce((a, i) => a + i.qty, 0);

@@ -29,7 +29,7 @@ export default async function Admin() {
   const btn = 'min-h-12 rounded-full bg-brand px-5 text-sm font-black text-white';
   return (
     <div className="py-6">
-      <div className="mb-4 flex items-center justify-between gap-3"><h1 className="mb-4 font-display text-4xl font-bold text-accent">Заказы</h1><Link href="/admin/site" className={btn}>Оформление сайта</Link></div>
+      <div className="mb-4 flex items-center justify-between gap-3"><h1 className="mb-4 font-display text-4xl font-bold text-accent">Заказы</h1><div className="flex flex-wrap gap-2"><Link href="/admin/site" className={btn}>Оформление сайта</Link><Link href="/admin/promo" className={btn}>Промокоды</Link><Link href="/admin/categories" className={btn}>Категории</Link></div></div>
       <div className="space-y-3">
         {orders?.map((o) => (
           <form key={o.id} action={setStatus} className="flex flex-wrap items-center gap-3 rounded-[24px] bg-card p-4 shadow-soft">

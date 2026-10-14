@@ -9,8 +9,13 @@ export function MenuSkeleton() {
 
 export default async function MenuSection({ categoryImages }: { categoryImages: Record<string, string> }) {
   const db = supabase();
-  const [{ data: cats }, { data: prods }] = await Promise.all([
-    db.from('categories').select('id,name,slug').order('sort_order'),
+  // показываем только видимые категории; если колонки is_visible ещё нет (не выполнена миграция 007), показываем все
+  const catsQ = async () => {
+    const r = await db.from('categories').select('id,name,slug').eq('is_visible', true).order('sort_order');
+    return r.error ? (await db.from('categories').select('id,name,slug').order('sort_order')).data : r.data;
+  };
+  const [cats, { data: prods }] = await Promise.all([
+    catsQ(),
     db.from('products').select('id,category_id,name,description,image_url,is_new,variants').eq('is_available', true),
   ]);
   if (!cats?.length) return <p className="py-16 text-center text-mute">Меню пока пустое.</p>;

@@ -24,3 +24,6 @@ export const BENEFITS: { icon: string; title: string; text: string }[] = [];
 
 // Время доставки, показывается в корзине и при оформлении. Меняется в админке (/admin/site)
 export const DELIVERY_TIME = 'Доставка по городу ~90 минут';
+
+// Текст над списком в корзине. Меняется в админке (/admin/site)
+export const INCLUDED_NOTE = 'В комплекте — только соевый соус бесплатно';

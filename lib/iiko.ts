@@ -19,10 +19,10 @@ export async function iiko<T = any>(path: string, body: unknown): Promise<T> {
 
 export const fetchNomenclature = () => iiko('/api/1/nomenclature', { organizationId: ORG() });
 
-export async function createDelivery(o: { number: string; phone: string; name: string; receiveType: string; address?: string; comment?: string; paymentMethod: string;
+export async function createDelivery(o: { number: string; phone: string; name: string; receiveType: string; address?: string; comment?: string; paymentMethod: string; note?: string;
   items: { iikoId: string; sizeId?: string | null; price: number; qty: number }[] }) {
   const delivery = o.receiveType === 'delivery';
-  const comment = [o.comment, delivery && o.address && `Адрес: ${o.address}`, `Оплата: ${o.paymentMethod === 'cash' ? 'наличными' : 'безналично при получении (карта/перевод)'}`].filter(Boolean).join('. ');
+  const comment = [o.comment, o.note, delivery && o.address && `Адрес: ${o.address}`, `Оплата: ${o.paymentMethod === 'cash' ? 'наличными' : 'безналично при получении (карта/перевод)'}`].filter(Boolean).join('. ');
   const res = await iiko('/api/1/deliveries/create', {
     organizationId: ORG(), terminalGroupId: process.env.IIKO_TERMINAL_GROUP_ID,
     order: {

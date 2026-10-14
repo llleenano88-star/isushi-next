@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { createDelivery } from '@/lib/iiko';
 import { supabaseSession } from '@/lib/supabase/ssr';
+import { getSettings } from '@/lib/settings';
+import { computeTotals } from '@/lib/pricing';
+import { findPromo, type FoundPromo } from '@/lib/promo';
 
 const Body = z.object({
   idempotencyKey: z.string().uuid(),
@@ -13,9 +16,13 @@ const Body = z.object({
   paymentMethod: z.enum(['cash', 'card']),
   comment: z.string().trim().max(300).optional(),
   turnstileToken: z.string().optional(),
+  promoCode: z.string().trim().max(40).optional(),
+  clientTotal: z.number().min(0).max(10_000_000).optional(), // сумма, которую видел клиент; сверяем с серверным расчётом
   items: z.array(z.object({ productId: z.string().uuid(), label: z.string().max(40), qty: z.number().int().min(1).max(50) })).min(1).max(40),
+  extras: z.array(z.object({ id: z.string().min(1).max(64), qty: z.number().int().min(1).max(20) })).max(30).default([]),
 }).refine((b) => b.receiveType === 'pickup' || !!b.address, { message: 'Укажите адрес', path: ['address'] });
 
+type Line = { product_id: string | null; name: string; variant_label: string | null; price: number; qty: number; iikoId: string | null; sizeId?: string | null };
 const fail = (error: string, status: number) => NextResponse.json({ error }, { status });
 
 export async function POST(req: Request) {
@@ -36,33 +43,75 @@ export async function POST(req: Request) {
 
   // Цены и доступность — только из БД
   const { data: prods } = await db.from('products').select('id,iiko_id,name,is_available,variants').in('id', [...new Set(b.items.map((i) => i.productId))]);
-  const lines: { product_id: string; name: string; variant_label: string; price: number; qty: number; iikoId: string | null; sizeId?: string | null }[] = [];
+  const lines: Line[] = [];
   for (const it of b.items) {
     const p = prods?.find((x) => x.id === it.productId);
     const v = (p?.variants as { label: string; price: number; sizeId?: string | null }[] | undefined)?.find((x) => x.label === it.label);
     if (!p || !p.is_available || !v) return fail('Некоторые позиции недоступны. Обновите корзину', 409);
     lines.push({ product_id: p.id, name: p.name, variant_label: v.label, price: v.price, qty: it.qty, iikoId: p.iiko_id, sizeId: v.sizeId });
   }
-  const productsTotal = lines.reduce((a, l) => a + l.price * l.qty, 0);
-  const delivery = b.receiveType === 'delivery' ? Number(process.env.DELIVERY_PRICE ?? 0) : 0;
+  // Дополнительные позиции (соусы, имбирь и т.д.) — тоже по настройкам из БД, цену клиента не берём
+  const { cart: cs } = await getSettings();
+  const extraLines: Line[] = [];
+  for (const x of b.extras) {
+    const e = cs.extras.find((z) => z.id === x.id && z.active);
+    if (!e) return fail('Дополнительные позиции изменились. Обновите корзину', 409);
+    extraLines.push({ product_id: null, name: e.name, variant_label: null, price: e.price, qty: x.qty, iikoId: e.iikoId ?? null, sizeId: null });
+  }
+  const subtotal = [...lines, ...extraLines].reduce((a, l) => a + l.price * l.qty, 0);
+  if (cs.minOrder > 0 && subtotal < cs.minOrder) return fail(`Минимальная сумма заказа ${cs.minOrder} ₽`, 400);
+
+  let promo: FoundPromo | null = null;
+  if (b.promoCode) {
+    const r = await findPromo(db, b.promoCode, subtotal);
+    if (!r.promo) return fail(r.error ?? 'Промокод недоступен', 400);
+    promo = r.promo;
+  }
+  const totals = computeTotals({ subtotal, receive: b.receiveType, deliveryPrice: cs.deliveryPrice, freeFrom: cs.freeDeliveryFrom, promo });
+  if (b.clientTotal != null && Math.abs(b.clientTotal - totals.total) > 0.01)
+    return NextResponse.json({ error: 'Стоимость заказа изменилась. Обновите страницу и проверьте сумму', total: totals.total }, { status: 409 });
+
+  if (promo) {
+    const { data: redeemed } = await db.rpc('redeem_promo', { p_code: promo.code });
+    if (!redeemed) return fail('Промокод больше недоступен', 409);
+  }
+  let released = false; // вернуть использование промокода можно только один раз
+  const release = async () => { if (promo && !released) { released = true; await db.rpc('release_promo', { p_code: promo.code }); } };
+
   const user = (await (await supabaseSession()).auth.getUser()).data.user;
   const number = `S${Date.now().toString(36).toUpperCase().slice(-5)}${Math.floor(Math.random() * 90 + 10)}`;
-
-  const { data: order, error } = await db.from('orders').insert({
+  const row: Record<string, unknown> = {
     user_id: user?.id ?? null, idempotency_key: b.idempotencyKey, number, phone: b.phone, customer_name: b.name,
     receive_type: b.receiveType, address: b.address ? { text: b.address } : null, payment_method: b.paymentMethod,
-    products_total: productsTotal, delivery_price: delivery, total: productsTotal + delivery, comment: b.comment ?? null,
-  }).select('id,number').single();
+    products_total: subtotal, delivery_price: totals.delivery, total: totals.total, comment: b.comment ?? null,
+    promo_code: promo?.code ?? null, discount: totals.discount,
+  };
+  let ins = await db.from('orders').insert(row).select('id,number').single();
+  if (ins.error?.code === '42703') { // колонки промокода ещё не созданы (не выполнена миграция 007): сохраняем без них
+    delete row.promo_code; delete row.discount;
+    ins = await db.from('orders').insert(row).select('id,number').single();
+  }
+  const { data: order, error } = ins;
   if (error?.code === '23505') { // гонка двойного тапа
+    await release();
     const again = await db.from('orders').select('id,number').eq('idempotency_key', b.idempotencyKey).single();
     if (again.data) return NextResponse.json(again.data);
   }
-  if (error || !order) return fail('Не удалось создать заказ', 500);
-  await db.from('order_items').insert(lines.map(({ iikoId, sizeId, ...l }) => ({ ...l, order_id: order.id })));
+  if (error || !order) { await release(); return fail('Не удалось создать заказ', 500); }
+
+  await db.from('order_items').insert([...lines, ...extraLines].map(({ iikoId, sizeId, ...l }) => ({ ...l, order_id: order.id })));
+
   if (lines.every((l) => l.iikoId)) {
     try {
-      const iikoId = await createDelivery({ number: order.number, phone: b.phone, name: b.name, receiveType: b.receiveType, address: b.address, comment: b.comment,
-        paymentMethod: b.paymentMethod, items: lines.map((l) => ({ iikoId: l.iikoId!, sizeId: l.sizeId, price: l.price, qty: l.qty })) });
+      const noIiko = extraLines.filter((l) => !l.iikoId);
+      const note = [
+        noIiko.length ? `Доп. (добавить вручную): ${noIiko.map((l) => `${l.name} ×${l.qty}`).join(', ')}` : '',
+        totals.delivery > 0 ? `Доставка ${totals.delivery} ₽` : '',
+        promo ? `Промокод ${promo.code}${totals.discount > 0 ? ` −${totals.discount} ₽` : ' (бесплатная доставка)'}` : '',
+        `К оплате: ${totals.total} ₽`,
+      ].filter(Boolean).join('. ');
+      const iikoId = await createDelivery({ number: order.number, phone: b.phone, name: b.name, receiveType: b.receiveType, address: b.address, comment: b.comment, note,
+        paymentMethod: b.paymentMethod, items: [...lines, ...extraLines.filter((l) => l.iikoId)].map((l) => ({ iikoId: l.iikoId!, sizeId: l.sizeId, price: l.price, qty: l.qty })) });
       if (iikoId) await db.from('orders').update({ iiko_order_id: iikoId }).eq('id', order.id);
     } catch (e) { console.error('iiko createDelivery failed', e); } // заказ сохранён, виден в админке
   }

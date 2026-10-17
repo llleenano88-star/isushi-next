@@ -16,8 +16,8 @@ export default async function Home() {
       <section className="rounded-[28px] bg-card p-6 shadow-soft sm:p-10">
         <h2 className="mb-4 text-center text-3xl font-extrabold">{about.title}</h2>
         <div className="mx-auto max-w-3xl space-y-3 text-sm leading-relaxed">
-          {about.blocks.map((t, i) => <p key={i} className={i === 0 ? 'font-bold' : ''}>{t}</p>)}
-          {about.list.length > 0 && <><p className="font-bold">{about.listTitle}</p><ul className="list-disc space-y-1 pl-6">{about.list.map((t) => <li key={t}>{t}</li>)}</ul></>}
+          {about.blocks?.map((t, i) => <p key={i} className={i === 0 ? 'font-bold' : ''}>{t}</p>)}
+          {about.list?.length > 0 && <><p className="font-bold">{about.listTitle}</p><ul className="list-disc space-y-1 pl-6">{about.list.map((t) => <li key={t}>{t}</li>)}</ul></>}
           {about.outro && <p>{about.outro}</p>}
         </div>
       </section>

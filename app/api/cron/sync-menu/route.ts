@@ -23,9 +23,18 @@ export async function GET(req: Request) {
     return { iiko_id: p.id, category_id: catId(top(p.parentGroup).id), name: p.name, description: p.description ?? null,
       image_url: p.imageLinks?.[0] ?? null, variants, updated_at: new Date().toISOString() };
   }).filter((r: any) => r.variants.length > 0);
-  // Фото, загруженные вручную в админке, не перезаписываем; скрытие товара тоже сохраняется (is_available не трогаем)
-  const { data: manual } = await db.from('products').select('iiko_id').eq('image_manual', true).not('iiko_id', 'is', null);
-  const keep = new Set((manual ?? []).map((m) => m.iiko_id));
+
+  // Фото, уже заполненное в базе сайта, не перезаписываем (загруженное вручную не пропадёт).
+  // Обновляются название, цена (variants), описание и категория; скрытие товара (is_available) не трогаем.
+  // Если у товара фото пустое — берём его из iiko. Флаг image_manual тоже сохраняет текущее значение (в т.ч. удалённое вручную фото).
+  const existing: { iiko_id: string | null; image_url: string | null; image_manual: boolean | null }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error: se } = await db.from('products').select('iiko_id, image_url, image_manual').not('iiko_id', 'is', null).range(from, from + 999);
+    if (se) return NextResponse.json({ error: se.message }, { status: 500 }); // лучше остановиться, чем затереть фото
+    existing.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  const keep = new Set(existing.filter((e) => e.image_manual === true || (e.image_url ?? '').trim() !== '').map((e) => e.iiko_id));
   const withImg = rows.filter((r: any) => !keep.has(r.iiko_id));
   const noImg = rows.filter((r: any) => keep.has(r.iiko_id)).map(({ image_url, ...r }: any) => r);
   const res = await Promise.all([withImg.length ? db.from('products').upsert(withImg, { onConflict: 'iiko_id' }) : null, noImg.length ? db.from('products').upsert(noImg, { onConflict: 'iiko_id' }) : null]);

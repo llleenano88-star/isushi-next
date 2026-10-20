@@ -4,6 +4,15 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export const maxDuration = 60;
 export async function GET(req: Request) {
+const got = req.headers.get('authorization') ?? '';
+const expected = `Bearer ${process.env.CRON_SECRET}`;
+console.log('--- CRON AUTH DEBUG ---');
+console.log('secret set:', !!process.env.CRON_SECRET);
+console.log('secret length:', process.env.CRON_SECRET?.length);
+console.log('got length:', got.length);
+console.log('expected length:', expected.length);
+console.log('got starts with Bearer:', got.startsWith('Bearer '));
+console.log('-----------------------');
   if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) return new NextResponse('Unauthorized', { status: 401 });
   const n = await fetchNomenclature(); const db = supabaseAdmin();
   const groups: Record<string, any> = Object.fromEntries((n.groups ?? []).map((g: any) => [g.id, g]));

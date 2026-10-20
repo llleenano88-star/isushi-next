@@ -4,7 +4,7 @@ import { supabaseBrowser } from '@/lib/supabase/client';
 import ImageCropModal from './ImageCropModal';
 import { ALLOWED_TYPES, SPECS, validateSource } from '@/lib/imageCrop';
 
-type V = { label: string; price: number | string; sizeId?: string | null };
+type V = { label: string; price: number | string; sizeId?: string | null; iiko_id?: string | null };
 type P = { id?: string; name?: string; description?: string | null; category_id?: string | null; image_url?: string | null; is_new?: boolean; variants?: V[]; iiko_id?: string | null };
 const inp = 'h-14 w-full rounded-full bg-card px-6 font-semibold shadow-soft outline-none focus:ring-2 focus:ring-accent';
 
@@ -33,7 +33,7 @@ export default function ProductForm({ product: p, categories, action }: { produc
     <>
     <form action={action} className="space-y-3 py-6">
       <input type="hidden" name="id" value={p.id ?? ''} /><input type="hidden" name="image_url" value={img} />
-      <input type="hidden" name="variants" value={JSON.stringify(vars)} />
+      <input type="hidden" name="variants" value={JSON.stringify(vars.map(({ iiko_id, ...v }) => (iiko_id && iiko_id.trim() ? { ...v, iiko_id: iiko_id.trim() } : v)))} />
       <h1 className="font-display text-4xl font-bold text-accent">{p.id ? 'Изменить позицию' : 'Новая позиция'}</h1>
       {p.iiko_id && <p className="rounded-2xl bg-card p-3 text-sm text-mute">Эта позиция из iiko: название, описание, цены и категория обновляются из iiko при синхронизации. Своё фото, «Новинка» и скрытие сохраняются.</p>}
       <div className="flex items-center gap-4">
@@ -52,10 +52,13 @@ export default function ProductForm({ product: p, categories, action }: { produc
       <div>
         <h2 className="mb-2 font-black">Варианты и цены</h2>
         {vars.map((v, i) => (
-          <div key={i} className="mb-2 flex gap-2">
-            <input className={inp} placeholder="8 шт" value={v.label} onChange={(e) => setV(i, 'label', e.target.value)} />
-            <input className={`${inp} max-w-32`} placeholder="₽" type="number" inputMode="numeric" value={v.price} onChange={(e) => setV(i, 'price', e.target.value)} />
-            {vars.length > 1 && <button type="button" aria-label="Убрать" onClick={() => setVars(vars.filter((_, j) => j !== i))} className="h-14 w-12 shrink-0">✕</button>}
+          <div key={i} className="mb-3">
+            <div className="mb-1 flex gap-2">
+              <input className={inp} placeholder="8 шт" value={v.label} onChange={(e) => setV(i, 'label', e.target.value)} />
+              <input className={`${inp} max-w-32`} placeholder="₽" type="number" inputMode="numeric" value={v.price} onChange={(e) => setV(i, 'price', e.target.value)} />
+              {vars.length > 1 && <button type="button" aria-label="Убрать" onClick={() => setVars(vars.filter((_, j) => j !== i))} className="h-14 w-12 shrink-0">✕</button>}
+            </div>
+            <input className={`${inp} h-12 text-sm`} placeholder="iiko_id варианта (необязательно)" value={v.iiko_id ?? ''} onChange={(e) => setV(i, 'iiko_id', e.target.value)} />
           </div>
         ))}
         <button type="button" onClick={() => setVars([...vars, { label: '', price: '' }])} className="h-12 px-2 font-bold text-accent">+ Добавить вариант</button>

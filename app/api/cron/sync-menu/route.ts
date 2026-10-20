@@ -4,15 +4,6 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export const maxDuration = 60;
 export async function GET(req: Request) {
-const got = req.headers.get('authorization') ?? '';
-const expected = `Bearer ${process.env.CRON_SECRET}`;
-console.log('--- CRON AUTH DEBUG ---');
-console.log('secret set:', !!process.env.CRON_SECRET);
-console.log('secret length:', process.env.CRON_SECRET?.length);
-console.log('got length:', got.length);
-console.log('expected length:', expected.length);
-console.log('got starts with Bearer:', got.startsWith('Bearer '));
-console.log('-----------------------');
   if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) return new NextResponse('Unauthorized', { status: 401 });
   const n = await fetchNomenclature(); const db = supabaseAdmin();
   const groups: Record<string, any> = Object.fromEntries((n.groups ?? []).map((g: any) => [g.id, g]));
@@ -36,12 +27,21 @@ console.log('-----------------------');
   // Фото, уже заполненное в базе сайта, не перезаписываем (загруженное вручную не пропадёт).
   // Обновляются название, цена (variants), описание и категория; скрытие товара (is_available) не трогаем.
   // Если у товара фото пустое — берём его из iiko. Флаг image_manual тоже сохраняет текущее значение (в т.ч. удалённое вручную фото).
-  const existing: { iiko_id: string | null; image_url: string | null; image_manual: boolean | null }[] = [];
+  const existing: { iiko_id: string | null; image_url: string | null; image_manual: boolean | null; variants: any }[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error: se } = await db.from('products').select('iiko_id, image_url, image_manual').not('iiko_id', 'is', null).range(from, from + 999);
+    const { data, error: se } = await db.from('products').select('iiko_id, image_url, image_manual, variants').not('iiko_id', 'is', null).range(from, from + 999);
     if (se) return NextResponse.json({ error: se.message }, { status: 500 }); // лучше остановиться, чем затереть фото
     existing.push(...(data ?? []));
     if (!data || data.length < 1000) break;
+  }
+  // iiko_id вариантов, заданные вручную в админке, не теряем: сопоставляем по sizeId или названию варианта
+  const oldVariants = new Map<string | null, any[]>(existing.map((e) => [e.iiko_id, Array.isArray(e.variants) ? e.variants : []] as [string | null, any[]]));
+  for (const r of rows) {
+    const old = oldVariants.get(r.iiko_id) ?? [];
+    r.variants = r.variants.map((v: any) => {
+      const prev = old.find((o: any) => (v.sizeId && o?.sizeId === v.sizeId) || o?.label === v.label);
+      return prev?.iiko_id ? { ...v, iiko_id: prev.iiko_id, sizeId: null } : v;
+    });
   }
   const keep = new Set(existing.filter((e) => e.image_manual === true || (e.image_url ?? '').trim() !== '').map((e) => e.iiko_id));
   const withImg = rows.filter((r: any) => !keep.has(r.iiko_id));

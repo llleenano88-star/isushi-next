@@ -46,9 +46,12 @@ export async function POST(req: Request) {
   const lines: Line[] = [];
   for (const it of b.items) {
     const p = prods?.find((x) => x.id === it.productId);
-    const v = (p?.variants as { label: string; price: number; sizeId?: string | null }[] | undefined)?.find((x) => x.label === it.label);
+    const v = (p?.variants as { label: string; price: number; sizeId?: string | null; iiko_id?: string | null }[] | undefined)?.find((x) => x.label === it.label);
     if (!p || !p.is_available || !v) return fail('Некоторые позиции недоступны. Обновите корзину', 409);
-    lines.push({ product_id: p.id, name: p.name, variant_label: v.label, price: v.price, qty: it.qty, iikoId: p.iiko_id, sizeId: v.sizeId });
+    // iiko_id выбранного варианта; если не задан — старое поле iiko_id товара
+    // Свой iiko_id у варианта = отдельный товар в iiko, поэтому sizeId не передаём
+    const own = typeof v.iiko_id === 'string' ? v.iiko_id.trim() : '';
+    lines.push({ product_id: p.id, name: p.name, variant_label: v.label, price: v.price, qty: it.qty, iikoId: own || p.iiko_id || null, sizeId: own ? null : v.sizeId });
   }
   // Дополнительные позиции (соусы, имбирь и т.д.) — тоже по настройкам из БД, цену клиента не берём
   const { cart: cs } = await getSettings();

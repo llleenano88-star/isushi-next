@@ -3,6 +3,7 @@ import { fetchExternalMenu } from '@/lib/iiko';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export const maxDuration = 60;
+export const preferredRegion = 'fra1';
 
 export async function GET(req: Request) {
   if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) return new NextResponse('Unauthorized', { status: 401 });

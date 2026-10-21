@@ -19,6 +19,15 @@ export async function iiko<T = any>(path: string, body: unknown): Promise<T> {
 
 export const fetchNomenclature = () => iiko('/api/1/nomenclature', { organizationId: ORG() });
 
+// Внешнее меню (то, что настроено в iikoWeb → «Внешнее меню»).
+// Если IIKO_EXTERNAL_MENU_ID не задан в env, берётся первое меню из списка.
+export async function fetchExternalMenu() {
+  const { externalMenus } = await iiko('/api/2/menu', {});
+  const externalMenuId = process.env.IIKO_EXTERNAL_MENU_ID ?? externalMenus?.[0]?.id;
+  if (!externalMenuId) throw new Error('iiko: нет внешних меню');
+  return iiko('/api/2/menu/by_id', { externalMenuId, organizationIds: [ORG()] });
+}
+
 export async function createDelivery(o: { number: string; phone: string; name: string; receiveType: string; address?: string; comment?: string; paymentMethod: string; note?: string;
   items: { iikoId: string; sizeId?: string | null; price: number; qty: number }[] }) {
   const delivery = o.receiveType === 'delivery';

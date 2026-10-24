@@ -20,7 +20,7 @@ export default function CartSection({ settings }: { settings: PublicSettings }) 
   const subtotal = items.reduce((a, i) => a + i.qty * i.price, 0);
   const activePromo = promo && subtotal >= promo.minOrder ? promo : null; // промокод с минимальной суммой действует, только пока сумма достаточна
   const totals = computeTotals({ subtotal, receive, deliveryPrice: settings.deliveryPrice, freeFrom: settings.freeDeliveryFrom, promo: activePromo });
-  const short = Math.max(0, settings.minOrder - subtotal); const minOk = short === 0;
+  const short = receive === 'delivery' ? Math.max(0, settings.minOrder - subtotal) : 0; const minOk = short === 0; // минимальная сумма только для доставки, самовывоз от любой суммы
   const tel = settings.phone.replace(/[^\d+]/g, '');
   const finish = () => { useCart.setState({ items: [] }); setDone(''); setForm(false); setPromo(null); setPromoInput(''); setPromoMsg(''); };
 
@@ -93,7 +93,7 @@ export default function CartSection({ settings }: { settings: PublicSettings }) 
           <div className="mt-4 flex gap-2">{tab('delivery', 'доставка')}{tab('pickup', 'самовывоз')}</div>
           {!form && <Totals subtotal={subtotal} totals={totals} receive={receive} deliveryPrice={settings.deliveryPrice} freeFrom={settings.freeDeliveryFrom} promoCode={activePromo?.code} />}
           {settings.deliveryTime && receive === 'delivery' && !form && <p className="mt-3 text-center text-sm text-mute">{settings.deliveryTime}</p>}
-          {!minOk && <p className="mt-3 text-center text-sm font-semibold text-red-500">Минимальная сумма заказа {settings.minOrder} ₽. Добавьте ещё на {short} ₽</p>}
+          {!minOk && <p className="mt-3 text-center text-sm font-semibold text-red-500">Минимальная сумма заказа на доставку {settings.minOrder} ₽. Добавьте ещё на {short} ₽ или выберите самовывоз</p>}
           {!form && <button onClick={() => setForm(true)} disabled={!minOk} className="mx-auto mt-4 block rounded-xl bg-brand px-10 py-4 text-xl font-medium lowercase text-white disabled:opacity-50">оформить заказ</button>}
           {form && <Checkout onDone={setDone} settings={settings} receive={receive} subtotal={subtotal} totals={totals} promoCode={activePromo?.code} canOrder={minOk} />}
         </>

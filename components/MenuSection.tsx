@@ -14,10 +14,14 @@ export default async function MenuSection({ categoryImages }: { categoryImages: 
     const r = await db.from('categories').select('id,name,slug').eq('is_visible', true).order('sort_order');
     return r.error ? (await db.from('categories').select('id,name,slug').order('sort_order')).data : r.data;
   };
-  // options (выбор соуса и т.п.) появляется после миграции 009; если её ещё нет, грузим без него, чтобы меню не пропало
+  // options и is_spicy появляются после миграций 009/010; если их ещё нет, грузим без них, чтобы меню не пропало
   const prodsQ = async () => {
-    const r = await db.from('products').select('id,category_id,name,description,image_url,is_new,variants,options').eq('is_available', true);
-    return r.error ? (await db.from('products').select('id,category_id,name,description,image_url,is_new,variants').eq('is_available', true)).data : r.data;
+    const base = 'id,category_id,name,description,image_url,is_new,variants';
+    for (const cols of [`${base},options,is_spicy`, `${base},options`, base]) {
+      const r = await db.from('products').select(cols).eq('is_available', true);
+      if (!r.error) return r.data as unknown as any[];
+    }
+    return [] as any[];
   };
   const [cats, prods] = await Promise.all([catsQ(), prodsQ()]);
   if (!cats?.length) return <p className="py-16 text-center text-mute">Меню пока пустое.</p>;

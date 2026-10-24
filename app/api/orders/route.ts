@@ -71,7 +71,7 @@ export async function POST(req: Request) {
     extraLines.push({ product_id: null, name: e.name, variant_label: null, price: e.price, qty: x.qty, iikoId: e.iikoId ?? null, sizeId: null });
   }
   const subtotal = [...lines, ...extraLines].reduce((a, l) => a + l.price * l.qty, 0);
-  if (cs.minOrder > 0 && subtotal < cs.minOrder) return fail(`Минимальная сумма заказа ${cs.minOrder} ₽`, 400);
+  if (b.receiveType === 'delivery' && cs.minOrder > 0 && subtotal < cs.minOrder) return fail(`Минимальная сумма заказа на доставку ${cs.minOrder} ₽`, 400); // самовывоз — от любой суммы
 
   let promo: FoundPromo | null = null;
   if (b.promoCode) {

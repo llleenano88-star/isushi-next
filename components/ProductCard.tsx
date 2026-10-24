@@ -2,9 +2,9 @@
 import { useEffect, useState } from 'react';
 import { useCart } from '@/lib/store/cart';
 import { cleanOptions } from '@/lib/options';
-import { ChoiceIcon } from './PepperIcon';
+import PepperIcon, { ChoiceIcon } from './PepperIcon';
 
-export type Product = { id: string; name: string; description: string | null; image_url: string | null; is_new: boolean; variants: { label: string; price: number }[]; options?: unknown };
+export type Product = { id: string; name: string; description: string | null; image_url: string | null; is_new: boolean; variants: { label: string; price: number }[]; options?: unknown; is_spicy?: boolean };
 
 function Photo({ url, className }: { url: string | null; className: string }) {
   return (
@@ -43,7 +43,10 @@ export default function ProductCard({ p }: { p: Product }) {
       <article className="relative flex flex-col">
         {p.is_new && <span className="absolute left-2 top-2 z-10 rounded-full bg-wine px-2.5 py-0.5 text-[10px] font-black uppercase text-white">Новинка</span>}
         <div role="button" tabIndex={0} onClick={() => setOpen(true)} onKeyDown={(e) => e.key === 'Enter' && setOpen(true)} className="cursor-pointer">
-          <Photo url={p.image_url} className="aspect-square w-full rounded-2xl" />
+          <div className="relative">
+            <Photo url={p.image_url} className="aspect-square w-full rounded-2xl" />
+            {p.is_spicy && <span title="Острый" className="absolute bottom-2 right-2 grid h-8 w-8 place-items-center rounded-full bg-white/95 shadow-soft"><PepperIcon size={22} /></span>}
+          </div>
           <h3 className="mt-2 line-clamp-2 text-sm font-extrabold leading-tight">{p.name}</h3>
           <p className="mt-1 line-clamp-2 text-xs leading-snug text-mute">{p.description}</p>
         </div>
@@ -58,7 +61,7 @@ export default function ProductCard({ p }: { p: Product }) {
               <button onClick={() => setOpen(false)} aria-label="Закрыть" className="absolute right-3 top-3 grid h-12 w-12 place-items-center rounded-full bg-card text-xl shadow-soft">✕</button>
             </div>
             <div className="space-y-3 p-5">
-              <h2 className="text-2xl font-extrabold leading-tight">{p.name}</h2>
+              <h2 className="flex items-center gap-2 text-2xl font-extrabold leading-tight">{p.name}{p.is_spicy && <span title="Острый"><PepperIcon size={26} /></span>}</h2>
               {p.description && <p className="text-sm leading-relaxed text-mute">{p.description}</p>}
               {groups.map((g, gi) => (
                 <div key={gi}>

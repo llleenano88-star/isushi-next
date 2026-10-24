@@ -39,11 +39,17 @@ export async function GET(req: Request) {
 
   // 2) внешнее меню вместе с модификаторами (соусы и допы часто лежат там)
   try {
-    const { externalMenus } = await iiko('/api/2/menu', {});
+    const { externalMenus, priceCategories } = await iiko('/api/2/menu', {});
+    const pcId = priceCategories?.[0]?.id as string | undefined;
     notes.push(`внешних меню: ${externalMenus?.length ?? 0}`);
     for (const em of externalMenus ?? []) {
       try {
-        const menu: any = await iiko('/api/2/menu/by_id', { externalMenuId: em.id, organizationIds: orgIds.slice(0, 1) });
+        // iiko иногда отвечает 500 на простой запрос: пробуем ещё с ценовой категорией и с другой версией ответа
+        const base = { externalMenuId: em.id, organizationIds: orgIds.slice(0, 1) };
+        const tries: Record<string, unknown>[] = [base, ...(pcId ? [{ ...base, priceCategoryId: pcId }] : []), { ...base, version: 2 }, { ...base, ...(pcId ? { priceCategoryId: pcId } : {}), version: 2 }];
+        let menu: any = null; let lastErr: unknown = null;
+        for (const body of tries) { try { menu = await iiko('/api/2/menu/by_id', body); break; } catch (err) { lastErr = err; } }
+        if (!menu) throw lastErr;
         let n = 0;
         for (const c of menu.itemCategories ?? []) for (const it of c.items ?? []) {
           add({ id: String(it.itemId), name: String(it.name ?? ''), type: 'Внешнее меню', group: String(c.name ?? ''), price: it.itemSizes?.[0]?.prices?.[0]?.price ?? null }); n++;
@@ -55,7 +61,29 @@ export async function GET(req: Request) {
     }
   } catch (e) { notes.push(`список внешних меню не загрузился: ${clean(e)}`); }
 
-  // 3) то, что уже есть на сайте (в базе): товары и их варианты
+  // 3) позиции из реальных заказов iiko за последние 30 дней: туда попадают «Доставка», соусы, имбирь и всё, что кассиры добавляют вручную.
+  // Это обходной путь, когда iiko не отдаёт меню напрямую.
+  try {
+    const pad = (n: number, w = 2) => String(n).padStart(w, '0');
+    const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
+    const to = new Date(); const from = new Date(Date.now() - 29 * 86400_000);
+    const body: Record<string, unknown> = { organizationIds: orgIds.slice(0, 1), deliveryDateFrom: fmt(from), deliveryDateTo: fmt(to) };
+    const statuses = ['Unconfirmed', 'WaitCooking', 'ReadyForCooking', 'CookingStarted', 'CookingCompleted', 'Waiting', 'OnWay', 'Delivered', 'Closed', 'Cancelled'];
+    let res: any;
+    try { res = await iiko('/api/1/deliveries/by_delivery_date_and_status', body); }
+    catch { res = await iiko('/api/1/deliveries/by_delivery_date_and_status', { ...body, statuses }); }
+    let orders = 0, lines = 0;
+    for (const org of res?.ordersByOrganizations ?? []) for (const o of org.orders ?? []) {
+      orders++;
+      for (const it of o.order?.items ?? []) {
+        const pr = it.product ?? {};
+        if (pr.id) { lines++; add({ id: String(pr.id), name: String(pr.name ?? ''), type: `Из заказов iiko${it.type ? ` (${it.type})` : ''}`, group: '', price: it.price ?? null }); }
+      }
+    }
+    notes.push(`заказов iiko за 30 дней: ${orders}, строк: ${lines}`);
+  } catch (e) { notes.push(`заказы iiko не загрузились: ${clean(e)}`); }
+
+  // 4) то, что уже есть на сайте (в базе): товары и их варианты
   try {
     const { data } = await supabaseAdmin().from('products').select('iiko_id,name,variants');
     let n = 0;

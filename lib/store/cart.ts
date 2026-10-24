@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type CartItem = { key: string; productId: string; name: string; label: string; price: number; qty: number; image?: string | null; extra?: boolean };
+export type CartItem = { key: string; productId: string; name: string; label: string; price: number; qty: number; image?: string | null; extra?: boolean; choices?: string[] };
 type State = {
   items: CartItem[]; open: boolean; askExtras: boolean;
   add: (i: Omit<CartItem, 'key' | 'qty'>) => void;
@@ -13,7 +13,7 @@ type State = {
 export const useCart = create<State>()(persist((set) => ({
   items: [], open: false, askExtras: false,
   add: (i) => set((s) => {
-    const key = i.extra ? `x:${i.productId}` : `${i.productId}:${i.label}`;
+    const key = i.extra ? `x:${i.productId}` : `${i.productId}:${i.label}${i.choices?.length ? ':' + i.choices.join('|') : ''}`;
     const ex = s.items.find((x) => x.key === key);
     const first = !i.extra && !s.items.some((x) => !x.extra); // первое блюдо в пустой корзине: предложим допы
     return { items: ex ? s.items.map((x) => x.key === key ? { ...x, qty: x.qty + 1 } : x) : [...s.items, { ...i, key, qty: 1 }], ...(first ? { askExtras: true } : {}) };

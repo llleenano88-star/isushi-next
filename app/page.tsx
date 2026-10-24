@@ -2,14 +2,16 @@ import { Suspense } from 'react';
 import Banners from '@/components/Banners';
 import MenuSection, { MenuSkeleton } from '@/components/MenuSection';
 import CartSection from '@/components/CartSection';
+import QuestionsBlock from '@/components/QuestionsBlock';
 import { getSettings } from '@/lib/settings';
 export const revalidate = 60;
 
 export default async function Home() {
-  const { banners, categoryImages, about, mapEmbed, cart } = await getSettings();
+  const { banners, categoryImages, about, mapEmbed, cart, questions } = await getSettings();
   return (
     <div className="py-3">
       <Banners banners={banners} />
+      <QuestionsBlock q={questions} compact />
       <div id="menu" className="mt-4 scroll-mt-24" />
       <Suspense fallback={<MenuSkeleton />}><MenuSection categoryImages={categoryImages} /></Suspense>
       <CartSection settings={cart} />
@@ -21,6 +23,7 @@ export default async function Home() {
           {about.outro && <p>{about.outro}</p>}
         </div>
       </section>
+      <QuestionsBlock q={questions} />
       {mapEmbed && <iframe src={mapEmbed} title="Карта" loading="lazy" className="mt-6 h-72 w-full rounded-[28px] border-0" />}
     </div>
   );

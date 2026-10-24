@@ -36,7 +36,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
     const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
       name: f.name, phone: f.phone, receiveType: receive, address: receive === 'delivery' ? address : undefined, paymentMethod: pay, comment: comment || undefined,
       idempotencyKey: key.current, turnstileToken: token, promoCode: promoCode || undefined, clientTotal: totals.total,
-      items: items.filter((i) => !i.extra).map((i) => ({ productId: i.productId, label: i.label, qty: i.qty })),
+      items: items.filter((i) => !i.extra).map((i) => ({ productId: i.productId, label: i.label, qty: i.qty, ...(i.choices?.length ? { choices: i.choices } : {}) })),
       extras: items.filter((i) => i.extra).map((i) => ({ id: i.productId, qty: i.qty })) }) });
     const j = await r.json().catch(() => ({})); setBusy(false);
     if (!r.ok) { setMsg(j.error ?? 'Ошибка'); if (wid.current) { (window as any).turnstile.reset(wid.current); setToken(''); } return; }

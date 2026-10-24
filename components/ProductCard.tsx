@@ -1,8 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useCart } from '@/lib/store/cart';
+import { cleanOptions } from '@/lib/options';
+import { ChoiceIcon } from './PepperIcon';
 
-export type Product = { id: string; name: string; description: string | null; image_url: string | null; is_new: boolean; variants: { label: string; price: number }[] };
+export type Product = { id: string; name: string; description: string | null; image_url: string | null; is_new: boolean; variants: { label: string; price: number }[]; options?: unknown };
 
 function Photo({ url, className }: { url: string | null; className: string }) {
   return (
@@ -16,9 +18,12 @@ export default function ProductCard({ p }: { p: Product }) {
   const add = useCart((s) => s.add); const setQty = useCart((s) => s.setQty); const items = useCart((s) => s.items);
   const [m, setM] = useState(false); useEffect(() => setM(true), []);
   const [open, setOpen] = useState(false); const [flash, setFlash] = useState('');
-  const single = p.variants.length === 1; const v0 = p.variants[0]; const min = Math.min(...p.variants.map((v) => v.price));
+  const groups = cleanOptions(p.options); const hasOpts = groups.length > 0;
+  const [sel, setSel] = useState<string[]>([]); // выбранные значения по группам (по порядку)
+  const picked = hasOpts && groups.every((_, gi) => !!sel[gi]);
+  const single = p.variants.length === 1 && !hasOpts; const v0 = p.variants[0]; const min = Math.min(...p.variants.map((v) => v.price));
   const line = single && m ? items.find((i) => i.key === `${p.id}:${v0.label}`) : undefined;
-  const put = (v: { label: string; price: number }) => add({ productId: p.id, name: p.name, label: v.label, price: v.price, image: p.image_url });
+  const put = (v: { label: string; price: number }) => add({ productId: p.id, name: p.name, label: v.label, price: v.price, image: p.image_url, ...(hasOpts ? { choices: groups.map((_, gi) => sel[gi]) } : {}) });
 
   const pill = 'flex h-11 w-full items-center justify-center rounded-full bg-blush text-sm font-extrabold text-accent transition ease-spring active:scale-95';
   const control = single && line ? (
@@ -55,9 +60,23 @@ export default function ProductCard({ p }: { p: Product }) {
             <div className="space-y-3 p-5">
               <h2 className="text-2xl font-extrabold leading-tight">{p.name}</h2>
               {p.description && <p className="text-sm leading-relaxed text-mute">{p.description}</p>}
+              {groups.map((g, gi) => (
+                <div key={gi}>
+                  {g.title && <p className="mb-1.5 text-sm font-extrabold">{g.title}</p>}
+                  <div className="flex flex-wrap gap-2">
+                    {g.choices.map((c) => (
+                      <button key={c} type="button" aria-pressed={sel[gi] === c} onClick={() => setSel((o) => { const n = [...o]; n[gi] = c; return n; })}
+                        className={`flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-bold transition ease-spring active:scale-95 ${sel[gi] === c ? 'bg-brand text-white' : 'bg-blush text-ink'}`}>
+                        <ChoiceIcon text={c} />{c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {hasOpts && !picked && <p className="text-xs text-mute">Выберите вариант, чтобы добавить в корзину</p>}
               <div className={`grid gap-2 ${p.variants.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {p.variants.map((v) => (
-                  <button key={v.label} onClick={() => { put(v); setFlash(v.label); setTimeout(() => setFlash(''), 900); }} className="min-h-12 rounded-full bg-brand px-3 py-1.5 text-sm font-extrabold leading-tight text-white transition ease-spring active:scale-95">
+                  <button key={v.label} disabled={hasOpts && !picked} onClick={() => { put(v); setFlash(v.label); setTimeout(() => setFlash(''), 900); }} className="min-h-12 rounded-full bg-brand px-3 py-1.5 text-sm font-extrabold leading-tight text-white transition ease-spring active:scale-95 disabled:opacity-40">
                     {flash === v.label ? '✓ Добавлено' : <><span className="block uppercase">{v.label}</span><span className="block">{v.price} ₽</span></>}
                   </button>
                 ))}

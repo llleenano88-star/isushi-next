@@ -37,7 +37,7 @@ export async function fetchExternalMenu() {
 }
 
 export async function createDelivery(o: { number: string; phone: string; name: string; receiveType: string; address?: string; comment?: string; paymentMethod: string; note?: string;
-  items: { iikoId: string; sizeId?: string | null; price: number; qty: number }[] }) {
+  items: { iikoId: string; sizeId?: string | null; price: number; qty: number; comment?: string }[] }) {
   const delivery = o.receiveType === 'delivery';
   const comment = [o.comment, o.note, delivery && o.address && `Адрес: ${o.address}`, `Оплата: ${o.paymentMethod === 'cash' ? 'наличными' : 'безналично при получении (карта/перевод)'}`].filter(Boolean).join('. ');
   const res = await iiko('/api/1/deliveries/create', {
@@ -46,7 +46,7 @@ export async function createDelivery(o: { number: string; phone: string; name: s
       externalNumber: o.number, phone: `+7${o.phone.slice(1)}`, comment,
       orderServiceType: delivery ? 'DeliveryByCourier' : 'DeliveryByClient',
       customer: { name: o.name, type: 'one-time' },
-      items: o.items.map((i) => ({ type: 'Product', productId: i.iikoId, amount: i.qty, price: i.price, ...(i.sizeId ? { productSizeId: i.sizeId } : {}) })),
+      items: o.items.map((i) => ({ type: 'Product', productId: i.iikoId, amount: i.qty, price: i.price, ...(i.sizeId ? { productSizeId: i.sizeId } : {}), ...(i.comment ? { comment: i.comment } : {}) })),
       ...(delivery && { deliveryPoint: { address: { street: { name: o.address ?? '', city: process.env.IIKO_CITY ?? '' }, house: '-' } } }),
     },
   });

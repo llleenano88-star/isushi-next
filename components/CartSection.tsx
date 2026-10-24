@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Checkout from './Checkout';
 import Totals from './Totals';
 import { useCart } from '@/lib/store/cart';
+import { ChoiceIcon } from './PepperIcon';
 import { computeTotals, type PromoRule } from '@/lib/pricing';
 import type { PublicSettings } from '@/lib/types';
 
@@ -65,7 +66,7 @@ export default function CartSection({ settings }: { settings: PublicSettings }) 
                 <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-blush bg-cover bg-center" style={it.image ? { backgroundImage: `url(${it.image})` } : undefined}>{!it.image && <span aria-hidden>{it.extra ? '🥢' : '🍣'}</span>}</div>
                 <div className="min-w-[5.5rem] flex-1">
                   <div title={it.name} className="line-clamp-2 break-words text-sm font-extrabold leading-tight">{it.name}</div>
-                  <div className="mt-0.5 text-xs text-mute">{it.extra ? 'Дополнительно' : it.label}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-mute">{it.extra ? 'Дополнительно' : it.label}{it.choices?.map((c) => <span key={c} className="flex items-center gap-0.5">· <ChoiceIcon text={c} size={14} />{c}</span>)}</div>
                 </div>
                 <div className="ml-auto flex shrink-0 items-center gap-1">
                   <div className="flex items-center">

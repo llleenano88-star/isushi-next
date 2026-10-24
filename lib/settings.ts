@@ -1,10 +1,43 @@
 import { supabase } from '@/lib/supabase/server';
 import { ABOUT, BANNERS, CATEGORY_IMAGES, MAP_EMBED, DELIVERY_TIME, INCLUDED_NOTE } from '@/lib/content';
-import type { Extra, PublicSettings } from '@/lib/types';
+import type { Extra, PublicSettings, QuestionsBlock } from '@/lib/types';
 
 export type Banner = { image: string; href?: string };
 export type About = typeof ABOUT;
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
+const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+const strList = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+
+// Картинки категорий: админка кладёт их по slug, старый вариант — по названию. Читаем оба, ничего не удаляем и не меняем в базе.
+function normImages(v: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      if (typeof val === 'string' && val.trim() && k.trim()) out[k.trim().toLowerCase()] = val.trim();
+    }
+  }
+  return out;
+}
+
+// Баннеры: сайт хранит ссылку в href, новая админка — в link
+function normBanners(v: unknown): Banner[] {
+  return (v as any[])
+    .map((b) => ({ image: String(b?.image ?? b?.url ?? b?.src ?? '').trim(), href: String(b?.href ?? b?.link ?? '').trim() || undefined }))
+    .filter((b) => b.image);
+}
+
+// «О нас»: поддерживаем и camelCase (сайт), и snake_case (новая админка)
+function normAbout(v: unknown): About {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return ABOUT;
+  const a = v as any;
+  return {
+    title: typeof a.title === 'string' ? a.title : ABOUT.title,
+    blocks: Array.isArray(a.blocks) ? strList(a.blocks) : ABOUT.blocks,
+    listTitle: typeof (a.listTitle ?? a.list_title) === 'string' ? (a.listTitle ?? a.list_title) : ABOUT.listTitle,
+    list: Array.isArray(a.list ?? a.items) ? strList(a.list ?? a.items) : ABOUT.list,
+    outro: typeof (a.outro ?? a.footer) === 'string' ? (a.outro ?? a.footer) : ABOUT.outro,
+  };
+}
 
 // Берёт настройки из админки; если их нет (или таблица не создана), использует значения из lib/content.ts
 export async function getSettings() {
@@ -16,18 +49,30 @@ export async function getSettings() {
   const extras: Extra[] = (Array.isArray(m.extras) ? m.extras : [])
     .map((e: any) => ({ id: String(e.id ?? ''), name: String(e.name ?? ''), price: num(e.price), image: e.image || undefined, iikoId: e.iikoId || undefined, default: !!e.default, active: e.active !== false }))
     .filter((e: Extra) => e.id && e.name);
+  const phone = str(m.phone) || str(m.contact_phone);
   const cart: PublicSettings = {
     deliveryTime: (m.delivery_time as string | undefined) ?? DELIVERY_TIME,
     deliveryPrice: num(m.delivery_price), freeDeliveryFrom: num(m.free_delivery_from), minOrder: num(m.min_order),
-    phone: typeof m.phone === 'string' ? m.phone : '',
+    phone,
     includedNote: (m.included_note as string | undefined) ?? INCLUDED_NOTE,
     extras,
   };
+  const links = [
+    { label: 'Telegram', href: str(m.telegram) }, { label: 'WhatsApp', href: str(m.whatsapp) }, { label: 'ВКонтакте', href: str(m.vk) },
+  ].filter((l) => /^https?:\/\//i.test(l.href));
+  const questions: QuestionsBlock = {
+    title: str(m.questions_title) || 'Остались вопросы?',
+    text: str(m.questions_text) || 'Позвоните нам или напишите в мессенджер — подскажем по меню, составу блюд и доставке.',
+    phone, links,
+  };
   return {
-    banners: (m.banners as Banner[] | undefined) ?? BANNERS,
-    categoryImages: (m.category_images as Record<string, string> | undefined) ?? CATEGORY_IMAGES,
-    about: (m.about as About | undefined) ?? ABOUT,
+    banners: Array.isArray(m.banners) ? normBanners(m.banners) : BANNERS,
+    categoryImages: m.category_images ? normImages(m.category_images) : normImages(CATEGORY_IMAGES),
+    about: normAbout(m.about),
     mapEmbed: (m.map_embed as string | undefined) ?? MAP_EMBED,
     cart,
+    questions,
+    // Код доставки в iiko: доставка уходит в iiko отдельной позицией с этим кодом. Только для сервера.
+    deliveryIikoId: str(m.delivery_iiko_id).replace(/^"+|"+$/g, ''),
   };
 }

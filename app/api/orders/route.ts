@@ -5,6 +5,7 @@ import { createDelivery } from '@/lib/iiko';
 import { supabaseSession } from '@/lib/supabase/ssr';
 import { getSettings } from '@/lib/settings';
 import { computeTotals } from '@/lib/pricing';
+import { cleanOptions } from '@/lib/options';
 import { findPromo, type FoundPromo } from '@/lib/promo';
 
 const Body = z.object({
@@ -18,11 +19,11 @@ const Body = z.object({
   turnstileToken: z.string().optional(),
   promoCode: z.string().trim().max(40).optional(),
   clientTotal: z.number().min(0).max(10_000_000).optional(), // сумма, которую видел клиент; сверяем с серверным расчётом
-  items: z.array(z.object({ productId: z.string().uuid(), label: z.string().max(40), qty: z.number().int().min(1).max(50) })).min(1).max(40),
+  items: z.array(z.object({ productId: z.string().uuid(), label: z.string().max(40), qty: z.number().int().min(1).max(50), choices: z.array(z.string().max(80)).max(5).optional() })).min(1).max(40),
   extras: z.array(z.object({ id: z.string().min(1).max(64), qty: z.number().int().min(1).max(20) })).max(30).default([]),
 }).refine((b) => b.receiveType === 'pickup' || !!b.address, { message: 'Укажите адрес', path: ['address'] });
 
-type Line = { product_id: string | null; name: string; variant_label: string | null; price: number; qty: number; iikoId: string | null; sizeId?: string | null };
+type Line = { product_id: string | null; name: string; variant_label: string | null; price: number; qty: number; iikoId: string | null; sizeId?: string | null; choice?: string | null };
 const fail = (error: string, status: number) => NextResponse.json({ error }, { status });
 
 export async function POST(req: Request) {
@@ -42,7 +43,10 @@ export async function POST(req: Request) {
   if (!ok) return fail('Слишком много заказов. Попробуйте позже', 429);
 
   // Цены и доступность — только из БД
-  const { data: prods } = await db.from('products').select('id,iiko_id,name,is_available,variants').in('id', [...new Set(b.items.map((i) => i.productId))]);
+  const ids = [...new Set(b.items.map((i) => i.productId))];
+  let pq: { data: any[] | null; error: any } = await db.from('products').select('id,iiko_id,name,is_available,variants,options').in('id', ids);
+  if (pq.error) pq = await db.from('products').select('id,iiko_id,name,is_available,variants').in('id', ids); // миграция 009 ещё не выполнена
+  const prods = pq.data;
   const lines: Line[] = [];
   for (const it of b.items) {
     const p = prods?.find((x) => x.id === it.productId);
@@ -51,10 +55,15 @@ export async function POST(req: Request) {
     // iiko_id выбранного варианта; если не задан — старое поле iiko_id товара
     // Свой iiko_id у варианта = отдельный товар в iiko, поэтому sizeId не передаём
     const own = typeof v.iiko_id === 'string' ? v.iiko_id.trim() : '';
-    lines.push({ product_id: p.id, name: p.name, variant_label: v.label, price: v.price, qty: it.qty, iikoId: own || p.iiko_id || null, sizeId: own ? null : v.sizeId });
+    // Выбор (острый / не острый, какой ролл): проверяем по настройкам товара в БД. Своих iiko-кодов у выбора нет, он уходит в комментарии.
+    const groups = cleanOptions((p as any).options);
+    const picked = it.choices ?? [];
+    if (groups.length && (picked.length !== groups.length || groups.some((g, gi) => !g.choices.includes(picked[gi])))) return fail(`Выберите вариант для «${p.name}». Обновите корзину`, 409);
+    const choice = groups.length ? picked.join(', ') : null;
+    lines.push({ product_id: p.id, name: p.name, variant_label: choice ? `${v.label} (${choice})` : v.label, price: v.price, qty: it.qty, iikoId: own || p.iiko_id || null, sizeId: own ? null : v.sizeId, choice });
   }
   // Дополнительные позиции (соусы, имбирь и т.д.) — тоже по настройкам из БД, цену клиента не берём
-  const { cart: cs } = await getSettings();
+  const { cart: cs, deliveryIikoId } = await getSettings();
   const extraLines: Line[] = [];
   for (const x of b.extras) {
     const e = cs.extras.find((z) => z.id === x.id && z.active);
@@ -102,19 +111,25 @@ export async function POST(req: Request) {
   }
   if (error || !order) { await release(); return fail('Не удалось создать заказ', 500); }
 
-  await db.from('order_items').insert([...lines, ...extraLines].map(({ iikoId, sizeId, ...l }) => ({ ...l, order_id: order.id })));
+  await db.from('order_items').insert([...lines, ...extraLines].map(({ iikoId, sizeId, choice, ...l }) => ({ ...l, order_id: order.id })));
 
   if (lines.every((l) => l.iikoId)) {
     try {
       const noIiko = extraLines.filter((l) => !l.iikoId);
       const note = [
         noIiko.length ? `Доп. (добавить вручную): ${noIiko.map((l) => `${l.name} ×${l.qty}`).join(', ')}` : '',
-        totals.delivery > 0 ? `Доставка ${totals.delivery} ₽` : '',
+        lines.some((l) => l.choice) ? `Выбор: ${lines.filter((l) => l.choice).map((l) => `${l.name} — ${l.choice}`).join('; ')}` : '',
+        totals.delivery > 0 && !deliveryIikoId ? `Доставка ${totals.delivery} ₽` : '', // с кодом доставки она уходит отдельной позицией
         promo ? `Промокод ${promo.code}${totals.discount > 0 ? ` −${totals.discount} ₽` : ' (бесплатная доставка)'}` : '',
         `К оплате: ${totals.total} ₽`,
       ].filter(Boolean).join('. ');
       const iikoId = await createDelivery({ number: order.number, phone: b.phone, name: b.name, receiveType: b.receiveType, address: b.address, comment: b.comment, note,
-        paymentMethod: b.paymentMethod, items: [...lines, ...extraLines.filter((l) => l.iikoId)].map((l) => ({ iikoId: l.iikoId!, sizeId: l.sizeId, price: l.price, qty: l.qty })) });
+        paymentMethod: b.paymentMethod,
+        items: [
+          ...[...lines, ...extraLines.filter((l) => l.iikoId)].map((l) => ({ iikoId: l.iikoId!, sizeId: l.sizeId, price: l.price, qty: l.qty, ...(l.choice ? { comment: l.choice } : {}) })),
+          // Доставка отдельной позицией по коду из iiko (код задаётся в админке, раздел «Доставка»); бесплатная доставка не добавляется
+          ...(totals.delivery > 0 && deliveryIikoId ? [{ iikoId: deliveryIikoId, sizeId: null, price: totals.delivery, qty: 1 }] : []),
+        ] });
       if (iikoId) await db.from('orders').update({ iiko_order_id: iikoId }).eq('id', order.id);
     } catch (e) { console.error('iiko createDelivery failed', e); } // заказ сохранён, виден в админке
   }

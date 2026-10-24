@@ -4,3 +4,5 @@ export type PublicSettings = {
   deliveryTime: string; deliveryPrice: number; freeDeliveryFrom: number; minOrder: number;
   phone: string; includedNote: string; extras: Extra[];
 };
+
+export type QuestionsBlock = { title: string; text: string; phone: string; links: { label: string; href: string }[] };

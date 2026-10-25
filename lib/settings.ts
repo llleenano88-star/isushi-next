@@ -46,9 +46,21 @@ export async function getSettings() {
     const { data } = await supabase().from('site_settings').select('key,value');
     m = Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
   } catch { /* остаются значения по умолчанию */ }
-  const extras: Extra[] = (Array.isArray(m.extras) ? m.extras : [])
+  // Доп. товары: новая админка хранит их в таблице extras, старая форма сайта — в настройках (site_settings.extras).
+  // Если в таблице есть позиции, показываем их; иначе остаётся старый список, ничего не пропадёт.
+  const oldExtras: Extra[] = (Array.isArray(m.extras) ? m.extras : [])
     .map((e: any) => ({ id: String(e.id ?? ''), name: String(e.name ?? ''), price: num(e.price), image: e.image || undefined, iikoId: e.iikoId || undefined, default: !!e.default, active: e.active !== false }))
     .filter((e: Extra) => e.id && e.name);
+  let tableExtras: Extra[] = [];
+  try {
+    const { data, error } = await supabase().from('extras').select('id,name,price,image_url,iiko_id,is_default,is_active,sort_order').order('sort_order', { ascending: true });
+    if (!error) {
+      tableExtras = (data ?? [])
+        .map((e: any) => ({ id: String(e.id ?? ''), name: String(e.name ?? '').trim(), price: num(e.price), image: e.image_url || undefined, iikoId: e.iiko_id || undefined, default: !!e.is_default, active: e.is_active !== false }))
+        .filter((e: Extra) => e.id && e.name);
+    }
+  } catch { /* таблицы нет — работаем со старым списком */ }
+  const extras: Extra[] = tableExtras.length ? tableExtras : oldExtras;
   const phone = str(m.phone) || str(m.contact_phone);
   const cart: PublicSettings = {
     deliveryTime: (m.delivery_time as string | undefined) ?? DELIVERY_TIME,

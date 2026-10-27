@@ -53,6 +53,19 @@ export async function createDelivery(o: { number: string; phone: string; name: s
   return res?.orderInfo?.id as string | undefined;
 }
 
+// Автоподтверждение: заказ с сайта сразу уходит из статуса «Не подтверждён», оператору нажимать ничего не нужно.
+// iiko создаёт заказ не мгновенно, поэтому пробуем несколько раз с короткой паузой (всего до ~6 секунд).
+// Отключить: переменная IIKO_AUTO_CONFIRM=0. Ошибка подтверждения заказ не ломает: он останется в iiko «не подтверждённым».
+export async function confirmDelivery(orderId: string) {
+  if (process.env.IIKO_AUTO_CONFIRM === '0') return false;
+  for (let i = 0; i < 4; i++) {
+    await new Promise((r) => setTimeout(r, i === 0 ? 1200 : 1500));
+    try { await iiko('/api/1/deliveries/confirm', { organizationId: ORG(), orderId }); return true; }
+    catch (e) { if (i === 3) console.error('iiko confirm failed', e); }
+  }
+  return false;
+}
+
 export const registerWebhook = (uri: string) => iiko('/api/1/webhooks/update_settings', {
   organizationId: ORG(), webHooksUri: uri, authToken: process.env.IIKO_WEBHOOK_SECRET,
   webHooksFilter: { deliveryOrderFilter: { orderStatuses: ['Unconfirmed', 'WaitCooking', 'ReadyForCooking', 'CookingStarted', 'CookingCompleted', 'Waiting', 'OnWay', 'Delivered', 'Closed', 'Cancelled'], errors: true } },

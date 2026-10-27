@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { createDelivery } from '@/lib/iiko';
+import { createDelivery, confirmDelivery } from '@/lib/iiko';
 import { supabaseSession } from '@/lib/supabase/ssr';
 import { getSettings } from '@/lib/settings';
 import { computeTotals } from '@/lib/pricing';
@@ -131,6 +131,7 @@ export async function POST(req: Request) {
           ...(totals.delivery > 0 && deliveryIikoId ? [{ iikoId: deliveryIikoId, sizeId: null, price: totals.delivery, qty: 1 }] : []),
         ] });
       if (iikoId) await db.from('orders').update({ iiko_order_id: iikoId }).eq('id', order.id);
+      if (iikoId) await confirmDelivery(iikoId); // сразу подтверждаем, чтобы заказ шёл на кухню без оператора
     } catch (e) { console.error('iiko createDelivery failed', e); } // заказ сохранён, виден в админке
   }
   return NextResponse.json({ id: order.id, number: order.number });

@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase/server';
 import { ABOUT, BANNERS, CATEGORY_IMAGES, MAP_EMBED, DELIVERY_TIME, INCLUDED_NOTE } from '@/lib/content';
-import type { Extra, PublicSettings, QuestionsBlock } from '@/lib/types';
+import type { Extra, PublicSettings, QuestionsBlock, Zone } from '@/lib/types';
+import type { Promotion, PromoKind } from '@/lib/promotions';
 
 export type Banner = { image: string; href?: string };
 export type About = typeof ABOUT;
@@ -61,6 +62,27 @@ export async function getSettings() {
     }
   } catch { /* таблицы нет — работаем со старым списком */ }
   const extras: Extra[] = tableExtras.length ? tableExtras : oldExtras;
+  // Акции и зоны доставки из таблиц админки (если миграция 011 ещё не выполнена, просто пусто)
+  let promos: Promotion[] = []; let zones: Zone[] = [];
+  try {
+    const { data, error } = await supabase().from('promotions').select('*').eq('is_active', true).order('sort_order', { ascending: true });
+    if (!error) promos = (data ?? []).map((r: any) => ({
+      id: String(r.id), title: String(r.title ?? ''), description: String(r.description ?? ''), image: r.image_url || undefined, kind: r.kind as PromoKind,
+      config: r.config && typeof r.config === 'object' ? r.config : {}, timeFrom: String(r.time_from ?? ''), timeTo: String(r.time_to ?? ''),
+      weekdays: Array.isArray(r.weekdays) ? r.weekdays.map(Number).filter((d: number) => d >= 1 && d <= 7) : [], startsAt: String(r.starts_at ?? ''), endsAt: String(r.ends_at ?? ''),
+      receive: r.receive_type === 'delivery' || r.receive_type === 'pickup' ? r.receive_type : 'any',
+    })).filter((p: Promotion) => p.id && p.title);
+  } catch { /* акций нет */ }
+  try {
+    const { data, error } = await supabase().from('delivery_zones').select('*').eq('is_active', true).order('sort_order', { ascending: true });
+    const optNum = (v: unknown) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+    if (!error) zones = (data ?? []).map((r: any) => ({
+      id: String(r.id), name: String(r.name ?? ''), color: String(r.color || '#d81b7a'),
+      polygon: (Array.isArray(r.polygon) ? r.polygon : []).filter((pt: any) => Array.isArray(pt) && Number.isFinite(Number(pt[0])) && Number.isFinite(Number(pt[1]))).map((pt: any) => [Number(pt[0]), Number(pt[1])] as [number, number]),
+      price: optNum(r.delivery_price), minOrder: optNum(r.min_order), freeFrom: optNum(r.free_from),
+    })).filter((z: Zone) => z.id && z.name);
+  } catch { /* зон нет */ }
+  const lead = (a: unknown, b: unknown, da: number, db_: number): [number, number] => { const x = num(a) || da; const y = num(b) || db_; return [Math.min(x, y), Math.max(x, y)]; };
   const phone = str(m.phone) || str(m.contact_phone);
   const cart: PublicSettings = {
     deliveryTime: (m.delivery_time as string | undefined) ?? DELIVERY_TIME,
@@ -68,6 +90,12 @@ export async function getSettings() {
     phone,
     includedNote: (m.included_note as string | undefined) ?? INCLUDED_NOTE,
     extras,
+    tz: str(m.site_tz) || process.env.SITE_TZ || 'Europe/Samara',
+    pickupLead: lead(m.pickup_lead_min, m.pickup_lead_max, 30, 40), deliveryLead: lead(m.delivery_lead_min, m.delivery_lead_max, 60, 90),
+    slotStep: [5, 10, 15, 20, 30].includes(num(m.slot_step)) ? num(m.slot_step) : 10,
+    workFrom: str(m.work_from), workTo: str(m.work_to),
+    zoneText: str(m.zone_text) || 'Есть вопросы по поводу зоны доставки? Позвоните 202-10-20',
+    zones, promos,
   };
   const links = [
     { label: 'Telegram', href: str(m.telegram) }, { label: 'WhatsApp', href: str(m.whatsapp) }, { label: 'ВКонтакте', href: str(m.vk) },

@@ -26,8 +26,7 @@ export default function ExtrasPrompt({ extras }: { extras: Extra[] }) {
           {extras.map((e) => (
             <li key={e.id}>
               <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-2xl bg-card p-3 shadow-soft">
-                <input type="checkbox" checked={!!sel[e.id]} onChange={(ev) => setSel({ ...sel, [e.id]: ev.target.checked })} className="h-6 w-6 shrink-0 accent-[#2f6b2e]" />
-                {e.image && <span className="h-10 w-10 shrink-0 rounded-lg bg-cover bg-center" style={{ backgroundImage: `url(${e.image})` }} />}
+                <input type="checkbox" checked={!!sel[e.id]} onChange={(ev) => setSel({ ...sel, [e.id]: ev.target.checked })} className="h-6 w-6 shrink-0 accent-[#d81b7a]" />
                 <span className="min-w-0 flex-1 font-bold">{e.name}</span>
                 <b className="whitespace-nowrap">{e.price > 0 ? `${e.price} ₽` : 'бесплатно'}</b>
               </label>

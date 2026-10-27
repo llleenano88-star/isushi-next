@@ -7,6 +7,7 @@ import { getSettings } from '@/lib/settings';
 import { computeTotals } from '@/lib/pricing';
 import { cleanOptions } from '@/lib/options';
 import { findPromo, type FoundPromo } from '@/lib/promo';
+import { applyPromotions, checkGifts, hhmm, nowInTz, type EngineLine } from '@/lib/promotions';
 
 const Body = z.object({
   idempotencyKey: z.string().uuid(),
@@ -21,9 +22,12 @@ const Body = z.object({
   clientTotal: z.number().min(0).max(10_000_000).optional(), // сумма, которую видел клиент; сверяем с серверным расчётом
   items: z.array(z.object({ productId: z.string().uuid(), label: z.string().max(40), qty: z.number().int().min(1).max(50), choices: z.array(z.string().max(80)).max(5).optional() })).min(1).max(40),
   extras: z.array(z.object({ id: z.string().min(1).max(64), qty: z.number().int().min(1).max(20) })).max(30).default([]),
+  gifts: z.array(z.object({ promoId: z.string().uuid(), productId: z.string().uuid(), label: z.string().max(40) })).max(20).default([]),
+  zoneId: z.string().uuid().optional(),
+  desiredTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
 }).refine((b) => b.receiveType === 'pickup' || !!b.address, { message: 'Укажите адрес', path: ['address'] });
 
-type Line = { product_id: string | null; name: string; variant_label: string | null; price: number; qty: number; iikoId: string | null; sizeId?: string | null; choice?: string | null };
+type Line = { product_id: string | null; name: string; variant_label: string | null; price: number; qty: number; iikoId: string | null; sizeId?: string | null; choice?: string | null; rawLabel?: string };
 const fail = (error: string, status: number) => NextResponse.json({ error }, { status });
 
 export async function POST(req: Request) {
@@ -44,9 +48,12 @@ export async function POST(req: Request) {
 
   // Цены и доступность — только из БД
   const ids = [...new Set(b.items.map((i) => i.productId))];
-  let pq: { data: any[] | null; error: any } = await db.from('products').select('id,iiko_id,name,is_available,variants,options').in('id', ids);
-  if (pq.error) pq = await db.from('products').select('id,iiko_id,name,is_available,variants').in('id', ids); // миграция 009 ещё не выполнена
-  const prods = pq.data;
+  const loadProducts = async (list: string[]) => {
+    let r: { data: any[] | null; error: any } = await db.from('products').select('id,category_id,iiko_id,name,is_available,variants,options').in('id', list);
+    if (r.error) r = await db.from('products').select('id,category_id,iiko_id,name,is_available,variants').in('id', list); // миграция 009 ещё не выполнена
+    return r.data;
+  };
+  const prods = await loadProducts(ids);
   const lines: Line[] = [];
   for (const it of b.items) {
     const p = prods?.find((x) => x.id === it.productId);
@@ -60,7 +67,7 @@ export async function POST(req: Request) {
     const picked = it.choices ?? [];
     if (groups.length && (picked.length !== groups.length || groups.some((g, gi) => !g.choices.includes(picked[gi])))) return fail(`Выберите вариант для «${p.name}». Обновите корзину`, 409);
     const choice = groups.length ? picked.join(', ') : null;
-    lines.push({ product_id: p.id, name: p.name, variant_label: choice ? `${v.label} (${choice})` : v.label, price: v.price, qty: it.qty, iikoId: own || p.iiko_id || null, sizeId: own ? null : v.sizeId, choice });
+    lines.push({ product_id: p.id, name: p.name, variant_label: choice ? `${v.label} (${choice})` : v.label, price: v.price, qty: it.qty, iikoId: own || p.iiko_id || null, sizeId: own ? null : v.sizeId, choice, rawLabel: v.label });
   }
   // Дополнительные позиции (соусы, имбирь и т.д.) — тоже по настройкам из БД, цену клиента не берём
   const { cart: cs, deliveryIikoId } = await getSettings();
@@ -71,7 +78,43 @@ export async function POST(req: Request) {
     extraLines.push({ product_id: null, name: e.name, variant_label: null, price: e.price, qty: x.qty, iikoId: e.iikoId ?? null, sizeId: null });
   }
   const subtotal = [...lines, ...extraLines].reduce((a, l) => a + l.price * l.qty, 0);
-  if (b.receiveType === 'delivery' && cs.minOrder > 0 && subtotal < cs.minOrder) return fail(`Минимальная сумма заказа на доставку ${cs.minOrder} ₽`, 400); // самовывоз — от любой суммы
+
+  // Зона доставки: если зоны заведены, доставка возможна только в выбранную зону, со своими ценой и минимумом
+  let zone = null as (typeof cs.zones)[number] | null;
+  if (b.receiveType === 'delivery' && cs.zones.length) {
+    zone = cs.zones.find((z) => z.id === b.zoneId) ?? null;
+    if (!zone) return fail('Выберите зону доставки', 400);
+  }
+  const deliveryPrice = zone?.price ?? cs.deliveryPrice; const freeFrom = zone?.freeFrom ?? cs.freeDeliveryFrom; const minOrder = zone?.minOrder ?? cs.minOrder;
+  if (b.receiveType === 'delivery' && minOrder > 0 && subtotal < minOrder) return fail(`Минимальная сумма заказа на доставку ${minOrder} ₽`, 400); // самовывоз — от любой суммы
+
+  // Время «ко времени»: не раньше минимального срока (самовывоз и доставка отдельно), в часы работы
+  const nowI = nowInTz(cs.tz); let desiredMin: number | null = null;
+  if (b.desiredTime) {
+    const dm = hhmm(b.desiredTime); const lead = b.receiveType === 'delivery' ? cs.deliveryLead[0] : cs.pickupLead[0];
+    if (dm == null) return fail('Некорректное время', 400);
+    if (dm < nowI.minutes + lead) return fail(`Выберите время не раньше чем через ${lead} мин`, 400);
+    const wf = hhmm(cs.workFrom); const wt = hhmm(cs.workTo);
+    if ((wf != null && dm < wf) || (wt != null && dm > wt)) return fail('Это время вне часов работы', 400);
+    desiredMin = dm;
+  }
+
+  // Акции: скидки и подарки считаются здесь по данным из БД, значения из браузера не берём
+  const engineLines: EngineLine[] = lines.map((l) => ({ productId: l.product_id ?? '', categoryId: (prods?.find((x) => x.id === l.product_id) as any)?.category_id ?? null, label: l.rawLabel ?? '', price: l.price, qty: l.qty }));
+  const eng = applyPromotions({ lines: engineLines, promos: cs.promos, now: nowI, receive: b.receiveType });
+  const gc = checkGifts(eng.slots, b.gifts);
+  if (!gc.ok) return fail('Подарки по акции изменились. Обновите корзину', 409);
+  const giftLines: Line[] = [];
+  if (gc.gifts.length) {
+    const gp = await loadProducts([...new Set(gc.gifts.map((g) => g.productId))]);
+    for (const g of gc.gifts) {
+      const p = gp?.find((x) => x.id === g.productId);
+      const v = (p?.variants as { label: string; price: number; sizeId?: string | null; iiko_id?: string | null }[] | undefined)?.find((x) => x.label === g.label);
+      if (!p || !p.is_available || !v) return fail('Подарок по акции сейчас недоступен. Выберите другой', 409);
+      const own = typeof v.iiko_id === 'string' ? v.iiko_id.trim() : '';
+      giftLines.push({ product_id: p.id, name: p.name, variant_label: `${v.label} (подарок)`, price: 0, qty: 1, iikoId: own || p.iiko_id || null, sizeId: own ? null : v.sizeId, choice: null });
+    }
+  }
 
   let promo: FoundPromo | null = null;
   if (b.promoCode) {
@@ -79,7 +122,7 @@ export async function POST(req: Request) {
     if (!r.promo) return fail(r.error ?? 'Промокод недоступен', 400);
     promo = r.promo;
   }
-  const totals = computeTotals({ subtotal, receive: b.receiveType, deliveryPrice: cs.deliveryPrice, freeFrom: cs.freeDeliveryFrom, promo });
+  const totals = computeTotals({ subtotal, receive: b.receiveType, deliveryPrice, freeFrom, promo, extraDiscount: eng.discount });
   if (b.clientTotal != null && Math.abs(b.clientTotal - totals.total) > 0.01)
     return NextResponse.json({ error: 'Стоимость заказа изменилась. Обновите страницу и проверьте сумму', total: totals.total }, { status: 409 });
 
@@ -95,7 +138,8 @@ export async function POST(req: Request) {
   const row: Record<string, unknown> = {
     user_id: user?.id ?? null, idempotency_key: b.idempotencyKey, number, phone: b.phone, customer_name: b.name,
     receive_type: b.receiveType, address: b.address ? { text: b.address } : null, payment_method: b.paymentMethod,
-    products_total: subtotal, delivery_price: totals.delivery, total: totals.total, comment: b.comment ?? null,
+    products_total: subtotal, delivery_price: totals.delivery, total: totals.total,
+    comment: [b.comment, b.desiredTime ? `${b.receiveType === 'delivery' ? 'Доставить' : 'Забрать'} к ${b.desiredTime}` : '', zone ? `Зона: ${zone.name}` : ''].filter(Boolean).join('. ') || null,
     promo_code: promo?.code ?? null, discount: totals.discount,
   };
   let ins = await db.from('orders').insert(row).select('id,number').single();
@@ -111,22 +155,34 @@ export async function POST(req: Request) {
   }
   if (error || !order) { await release(); return fail('Не удалось создать заказ', 500); }
 
-  await db.from('order_items').insert([...lines, ...extraLines].map(({ iikoId, sizeId, choice, ...l }) => ({ ...l, order_id: order.id })));
+  await db.from('order_items').insert([...lines, ...extraLines, ...giftLines].map(({ iikoId, sizeId, choice, rawLabel, ...l }) => ({ ...l, order_id: order.id })));
 
-  if (lines.every((l) => l.iikoId)) {
+  // Время, зона и акции для админки (колонки из миграции 011; если их нет, заказ всё равно сохранён)
+  await db.from('orders').update({
+    desired_time: desiredMin != null ? new Date(Date.now() + (desiredMin - nowI.minutes) * 60_000).toISOString() : null,
+    delivery_zone: zone?.name ?? null,
+    promo_info: { discounts: eng.discounts, gifts: giftLines.map((g) => `${g.name} (${g.variant_label})`) },
+  }).eq('id', order.id);
+
+  if ([...lines, ...giftLines].every((l) => l.iikoId)) {
     try {
       const noIiko = extraLines.filter((l) => !l.iikoId);
       const note = [
         noIiko.length ? `Доп. (добавить вручную): ${noIiko.map((l) => `${l.name} ×${l.qty}`).join(', ')}` : '',
         lines.some((l) => l.choice) ? `Выбор: ${lines.filter((l) => l.choice).map((l) => `${l.name} — ${l.choice}`).join('; ')}` : '',
+        b.desiredTime ? `${b.receiveType === 'delivery' ? 'Доставить' : 'Забрать'} к ${b.desiredTime}` : '',
+        zone ? `Зона: ${zone.name}` : '',
+        eng.discounts.length ? `Акции: ${eng.discounts.map((d) => `${d.title} −${d.amount} ₽`).join('; ')}` : '',
+        giftLines.length ? `Подарок: ${giftLines.map((g) => g.name).join(', ')}` : '',
         totals.delivery > 0 && !deliveryIikoId ? `Доставка ${totals.delivery} ₽` : '', // с кодом доставки она уходит отдельной позицией
         promo ? `Промокод ${promo.code}${totals.discount > 0 ? ` −${totals.discount} ₽` : ' (бесплатная доставка)'}` : '',
         `К оплате: ${totals.total} ₽`,
       ].filter(Boolean).join('. ');
       const iikoId = await createDelivery({ number: order.number, phone: b.phone, name: b.name, receiveType: b.receiveType, address: b.address, comment: b.comment, note,
         paymentMethod: b.paymentMethod,
+        ...(b.desiredTime ? { completeBefore: `${nowI.date} ${b.desiredTime}:00.000` } : {}),
         items: [
-          ...[...lines, ...extraLines.filter((l) => l.iikoId)].map((l) => ({ iikoId: l.iikoId!, sizeId: l.sizeId, price: l.price, qty: l.qty, ...(l.choice ? { comment: l.choice } : {}) })),
+          ...[...lines, ...giftLines, ...extraLines.filter((l) => l.iikoId)].map((l) => ({ iikoId: l.iikoId!, sizeId: l.sizeId, price: l.price, qty: l.qty, ...(l.choice ? { comment: l.choice } : {}) })),
           // Доставка отдельной позицией по коду из iiko (код задаётся в админке, раздел «Доставка»); бесплатная доставка не добавляется
           ...(totals.delivery > 0 && deliveryIikoId ? [{ iikoId: deliveryIikoId, sizeId: null, price: totals.delivery, qty: 1 }] : []),
         ] });

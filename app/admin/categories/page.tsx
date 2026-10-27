@@ -30,7 +30,7 @@ export default async function CategoriesAdmin({ searchParams }: { searchParams: 
           <label className={lab}>Название<input name="name" required className={inp} /></label>
           <label className={lab}>Адрес (slug), необязательно<input name="slug" placeholder="rolls" className={inp} /></label>
           <label className={lab}>Порядок<input name="sort_order" type="number" defaultValue={cats.length + 1} className={inp} /></label>
-          <label className="flex min-h-11 items-center gap-2 self-end text-sm font-semibold"><input type="checkbox" name="is_visible" defaultChecked className="h-5 w-5 accent-[#2f6b2e]" />Показывать</label>
+          <label className="flex min-h-11 items-center gap-2 self-end text-sm font-semibold"><input type="checkbox" name="is_visible" defaultChecked className="h-5 w-5 accent-[#d81b7a]" />Показывать</label>
         </div>
         <button className={btn}>Добавить</button>
       </form>
@@ -42,7 +42,7 @@ export default async function CategoriesAdmin({ searchParams }: { searchParams: 
             <label className={lab}>Название<input name="name" required defaultValue={c.name} className={inp} /></label>
             <label className={lab}>Адрес (slug)<input name="slug" defaultValue={c.slug} className={inp} /></label>
             <label className={lab}>Порядок<input name="sort_order" type="number" defaultValue={c.sort_order} className={inp} /></label>
-            <label className="flex min-h-11 items-center gap-2 self-end text-sm font-semibold"><input type="checkbox" name="is_visible" defaultChecked={c.is_visible !== false} className="h-5 w-5 accent-[#2f6b2e]" />Показывать</label>
+            <label className="flex min-h-11 items-center gap-2 self-end text-sm font-semibold"><input type="checkbox" name="is_visible" defaultChecked={c.is_visible !== false} className="h-5 w-5 accent-[#d81b7a]" />Показывать</label>
           </div>
           <div className="flex flex-wrap gap-2">
             <button className={btn}>Сохранить</button>

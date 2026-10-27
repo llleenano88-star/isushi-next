@@ -3,7 +3,7 @@ export type PromoRule = { type: 'percent' | 'fixed' | 'free_delivery'; value: nu
 export type Totals = { delivery: number; discount: number; total: number; deliveryFree: boolean };
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-export function computeTotals(o: { subtotal: number; receive: 'delivery' | 'pickup'; deliveryPrice: number; freeFrom: number; promo?: PromoRule | null }): Totals {
+export function computeTotals(o: { subtotal: number; receive: 'delivery' | 'pickup'; deliveryPrice: number; freeFrom: number; promo?: PromoRule | null; extraDiscount?: number }): Totals {
   const paid = o.receive === 'delivery' && o.deliveryPrice > 0;
   let delivery = paid && !(o.freeFrom > 0 && o.subtotal >= o.freeFrom) ? o.deliveryPrice : 0;
   let discount = 0;
@@ -12,5 +12,6 @@ export function computeTotals(o: { subtotal: number; receive: 'delivery' | 'pick
     else if (o.promo.type === 'fixed') discount = Math.min(o.subtotal, o.promo.value);
     else delivery = 0;
   }
+  discount = Math.min(o.subtotal, discount + Math.max(0, o.extraDiscount ?? 0)); // скидки акций складываются со скидкой промокода
   return { delivery: r2(delivery), discount: r2(discount), total: r2(o.subtotal - discount + delivery), deliveryFree: paid && delivery === 0 };
 }

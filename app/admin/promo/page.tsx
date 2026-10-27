@@ -21,7 +21,7 @@ function Fields({ p }: { p?: any }) {
       <label className={lab}>Мин. сумма заказа, ₽<input name="min_order" type="number" step="any" min="0" defaultValue={p?.min_order ?? 0} className={inp} /></label>
       <label className={lab}>Действует до<input name="expires_at" type="date" defaultValue={p?.expires_at ? String(p.expires_at).slice(0, 10) : ''} className={inp} /></label>
       <label className={lab}>Лимит использований<input name="max_uses" type="number" min="1" defaultValue={p?.max_uses ?? ''} placeholder="без лимита" className={inp} /></label>
-      <label className="flex min-h-11 items-center gap-2 self-end text-sm font-semibold"><input type="checkbox" name="active" defaultChecked={p ? p.active : true} className="h-5 w-5 accent-[#2f6b2e]" />Активен</label>
+      <label className="flex min-h-11 items-center gap-2 self-end text-sm font-semibold"><input type="checkbox" name="active" defaultChecked={p ? p.active : true} className="h-5 w-5 accent-[#d81b7a]" />Активен</label>
     </div>
   );
 }

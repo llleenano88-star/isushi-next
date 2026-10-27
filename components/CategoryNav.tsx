@@ -16,9 +16,9 @@ export default function CategoryNav({ items }: { items: { id: string; name: stri
     if (n && b) n.scrollTo({ left: b.offsetLeft - n.clientWidth / 2 + b.clientWidth / 2, behavior: 'smooth' });
   }, [active]);
   return (
-    <nav ref={nav} className="sticky top-[calc(64px+env(safe-area-inset-top))] z-30 -mx-4 flex gap-2 overflow-x-auto bg-bg/90 px-4 py-2 backdrop-blur [scrollbar-width:none]">
+    <nav ref={nav} className="sticky top-[env(safe-area-inset-top)] z-30 -mx-4 flex gap-2.5 overflow-x-auto bg-bg/95 px-4 py-3 backdrop-blur [scrollbar-width:none] md:top-[calc(72px+env(safe-area-inset-top))]">
       {items.map((it) => (
-        <a key={it.id} href={`#${it.id}`} data-id={it.id} className={`flex h-10 shrink-0 items-center rounded-full px-5 text-sm font-bold transition-colors ${active === it.id ? 'bg-brand text-white' : 'bg-blush text-ink'}`}>{it.name}</a>
+        <a key={it.id} href={`#${it.id}`} data-id={it.id} className={`flex h-12 shrink-0 items-center rounded-full px-6 text-base font-bold transition-colors ${active === it.id ? 'bg-brand text-white' : 'bg-blush text-ink'}`}>{it.name}</a>
       ))}
     </nav>
   );

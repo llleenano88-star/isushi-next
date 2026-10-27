@@ -77,8 +77,8 @@ export default function SiteSettingsForm({ initial, categories, action, saved }:
             </div>
             <div className="flex flex-wrap items-center gap-4">
               <input className={`${inp} min-w-40 flex-1`} placeholder="Код позиции в iiko (необязательно)" value={e.iikoId ?? ''} onChange={(ev) => setEx(i, { iikoId: ev.target.value })} />
-              <label className="flex min-h-12 items-center gap-2 text-sm font-semibold"><input type="checkbox" className="h-5 w-5 accent-[#2f6b2e]" checked={e.default} onChange={(ev) => setEx(i, { default: ev.target.checked })} />Выбран по умолчанию</label>
-              <label className="flex min-h-12 items-center gap-2 text-sm font-semibold"><input type="checkbox" className="h-5 w-5 accent-[#2f6b2e]" checked={e.active} onChange={(ev) => setEx(i, { active: ev.target.checked })} />Активен</label>
+              <label className="flex min-h-12 items-center gap-2 text-sm font-semibold"><input type="checkbox" className="h-5 w-5 accent-[#d81b7a]" checked={e.default} onChange={(ev) => setEx(i, { default: ev.target.checked })} />Выбран по умолчанию</label>
+              <label className="flex min-h-12 items-center gap-2 text-sm font-semibold"><input type="checkbox" className="h-5 w-5 accent-[#d81b7a]" checked={e.active} onChange={(ev) => setEx(i, { active: ev.target.checked })} />Активен</label>
               <button type="button" aria-label="Удалить позицию" onClick={() => setExtras(extras.filter((_, k) => k !== i))} className={ghost}>🗑</button>
             </div>
           </div>

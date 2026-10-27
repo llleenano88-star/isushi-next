@@ -36,13 +36,14 @@ export async function fetchExternalMenu() {
   }
 }
 
-export async function createDelivery(o: { number: string; phone: string; name: string; receiveType: string; address?: string; comment?: string; paymentMethod: string; note?: string;
+export async function createDelivery(o: { number: string; phone: string; name: string; receiveType: string; address?: string; comment?: string; paymentMethod: string; note?: string; completeBefore?: string;
   items: { iikoId: string; sizeId?: string | null; price: number; qty: number; comment?: string }[] }) {
   const delivery = o.receiveType === 'delivery';
   const comment = [o.comment, o.note, delivery && o.address && `Адрес: ${o.address}`, `Оплата: ${o.paymentMethod === 'cash' ? 'наличными' : 'безналично при получении (карта/перевод)'}`].filter(Boolean).join('. ');
   const res = await iiko('/api/1/deliveries/create', {
     organizationId: ORG(), terminalGroupId: process.env.IIKO_TERMINAL_GROUP_ID,
     order: {
+      ...(o.completeBefore ? { completeBefore: o.completeBefore } : {}),
       externalNumber: o.number, phone: `+7${o.phone.slice(1)}`, comment,
       orderServiceType: delivery ? 'DeliveryByCourier' : 'DeliveryByClient',
       customer: { name: o.name, type: 'one-time' },

@@ -1,7 +1,8 @@
 @tailwind base; @tailwind components; @tailwind utilities;
-:root { --bg:#eef3dd; --card:#ffffff; --ink:#1f2a1c; --mute:#5f6e57; --accent:#2f6b2e; --blush:#d3e0b8; --leaf:#2f6b2e; --sage:#6f8f5f; }
+:root { --bg:#ffffff; --card:#ffffff; --ink:#1d1d22; --mute:#8b8b95; --accent:#d81b7a; --blush:#fde8f2; --leaf:#d81b7a; --sage:#f4b8d6; }
 .dark-theme { --bg:#101710; --card:#1b261a; --ink:#eef3e8; --mute:#9fb095; --accent:#8fd081; --blush:#2c3d27; --leaf:#4f9a45; --sage:#3f5a37; color-scheme: dark; }
-body { background: var(--bg); color: var(--ink); padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+body { background: var(--bg); color: var(--ink); padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
+@media (min-width: 768px) { body { padding-bottom: 32px; } }
 .skeleton { @apply animate-pulse rounded-[20px] bg-black/10 dark:bg-white/10; }
 html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

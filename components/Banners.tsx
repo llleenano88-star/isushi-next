@@ -9,16 +9,16 @@ export default function Banners({ banners }: { banners: B[] }) {
   const go = (k: number) => ref.current?.scrollTo({ left: k * step(), behavior: 'smooth' });
   useEffect(() => { if (n < 2) return; const t = setInterval(() => go((i + 1) % n), 5000); return () => clearInterval(t); }, [i, n]);
   if (!n) return (
-    <a href="#menu" className="grid aspect-[16/9] place-items-center rounded-[24px] bg-brand text-center text-white md:aspect-[3/1]">
+    <a href="#menu" className="grid aspect-[4/3] place-items-center rounded-[28px] bg-brand text-center text-white md:aspect-[5/2]">
       <div><div className="text-4xl font-extrabold tracking-wide sm:text-6xl">ISUSHICLUB</div><div className="mt-2 text-sm font-semibold opacity-90 sm:text-lg">Роллы, суши и пицца с доставкой</div></div>
     </a>
   );
   return (
     <div className="relative">
       <div ref={ref} onScroll={(e) => { const st = step(); if (st) setI(Math.round(e.currentTarget.scrollLeft / st)); }}
-        className="flex snap-x snap-mandatory gap-3 overflow-x-auto [scrollbar-width:none] before:w-[calc(6%_-_12px)] before:shrink-0 before:content-[''] after:w-[calc(6%_-_12px)] after:shrink-0 after:content-[''] md:before:w-[calc(10%_-_12px)] md:after:w-[calc(10%_-_12px)]">
+        className="flex snap-x snap-mandatory gap-3 overflow-x-auto [scrollbar-width:none] before:w-[calc(4%_-_12px)] before:shrink-0 before:content-[''] after:w-[calc(4%_-_12px)] after:shrink-0 after:content-[''] md:before:w-[calc(6%_-_12px)] md:after:w-[calc(6%_-_12px)]">
         {banners.map((b, k) => (
-          <a key={k} href={b.href || '#menu'} aria-label={`Баннер ${k + 1}`} className="aspect-[16/9] w-[88%] shrink-0 snap-center rounded-[24px] bg-cover bg-center md:aspect-[3/1] md:w-[80%]" style={{ backgroundImage: `url(${b.image})` }} />
+          <a key={k} href={b.href || '#menu'} aria-label={`Баннер ${k + 1}`} className="aspect-[4/3] w-[92%] shrink-0 snap-center rounded-[28px] bg-cover bg-center sm:aspect-[16/9] md:aspect-[5/2] md:w-[84%]" style={{ backgroundImage: `url(${b.image})` }} />
         ))}
       </div>
       {n > 1 && (

@@ -17,7 +17,7 @@ export default async function MenuSection({ categoryImages }: { categoryImages: 
   // options, is_spicy и is_hit появляются после миграций 009–011; если их ещё нет, грузим без них, чтобы меню не пропало
   const prodsQ = async () => {
     const base = 'id,category_id,name,description,image_url,is_new,variants';
-    for (const cols of [`${base},options,is_spicy,is_hit`, `${base},options,is_spicy`, `${base},options`, base]) {
+    for (const cols of [`${base},options,is_spicy,is_hit,is_promo`, `${base},options,is_spicy,is_hit`, `${base},options,is_spicy`, `${base},options`, base]) {
       const r = await db.from('products').select(cols).eq('is_available', true);
       if (!r.error) return r.data as unknown as any[];
     }

@@ -7,10 +7,11 @@ const pill = 'inline-flex h-7 items-center gap-1 rounded-full pr-3 text-[11px] f
 const dot = 'ml-0.5 grid h-7 w-7 place-items-center rounded-full';
 
 // Значки на карточке: ХИТ (оранжевый), ОСТРО (зелёный), НОВИНКА (персиковый)
-export default function Badges({ hit, spicy, isNew }: { hit?: boolean; spicy?: boolean; isNew?: boolean }) {
-  if (!hit && !spicy && !isNew) return null;
+export default function Badges({ hit, spicy, isNew, promo }: { hit?: boolean; spicy?: boolean; isNew?: boolean; promo?: boolean }) {
+  if (!hit && !spicy && !isNew && !promo) return null;
   return (
     <div className="flex flex-wrap gap-2">
+      {promo && <span className={`${pill} bg-[#fde0ee] text-[#c2185b]`}><span className={`${dot} bg-[#f9b8d8]`}><Sparkle /></span>Акция</span>}
       {hit && <span className={`${pill} bg-[#ffe3bd] text-[#c2410c]`}><span className={`${dot} bg-[#ffc983]`}><Flame /></span>Хит</span>}
       {spicy && <span className={`${pill} bg-[#d4f1b3] text-[#2c6a14]`}><span className={`${dot} bg-[#aedf7a]`}><PepperIcon green size={16} /></span>Остро</span>}
       {isNew && <span className={`${pill} bg-[#ffe0d3] text-[#e4572e]`}><span className={`${dot} bg-[#ffc7b0]`}><Sparkle /></span>Новинка</span>}

@@ -8,6 +8,7 @@ import { computeTotals } from '@/lib/pricing';
 import { cleanOptions } from '@/lib/options';
 import { findPromo, type FoundPromo } from '@/lib/promo';
 import { applyPromotions, checkGifts, hhmm, nowInTz, type EngineLine } from '@/lib/promotions';
+import { openState } from '@/lib/hours';
 
 const Body = z.object({
   idempotencyKey: z.string().uuid(),
@@ -24,6 +25,7 @@ const Body = z.object({
   extras: z.array(z.object({ id: z.string().min(1).max(64), qty: z.number().int().min(1).max(20) })).max(30).default([]),
   gifts: z.array(z.object({ promoId: z.string().uuid(), productId: z.string().uuid(), label: z.string().max(40) })).max(20).default([]),
   zoneId: z.string().uuid().optional(),
+  promoId: z.string().uuid().optional(),
   desiredTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
 }).refine((b) => b.receiveType === 'pickup' || !!b.address, { message: 'Укажите адрес', path: ['address'] });
 
@@ -49,8 +51,11 @@ export async function POST(req: Request) {
   // Цены и доступность — только из БД
   const ids = [...new Set(b.items.map((i) => i.productId))];
   const loadProducts = async (list: string[]) => {
-    let r: { data: any[] | null; error: any } = await db.from('products').select('id,category_id,iiko_id,name,is_available,variants,options').in('id', list);
-    if (r.error) r = await db.from('products').select('id,category_id,iiko_id,name,is_available,variants').in('id', list); // миграция 009 ещё не выполнена
+    let r: { data: any[] | null; error: any } = { data: null, error: true };
+    for (const cols of ['id,category_id,iiko_id,name,is_available,variants,options,is_promo', 'id,category_id,iiko_id,name,is_available,variants,options', 'id,category_id,iiko_id,name,is_available,variants']) {
+      r = await db.from('products').select(cols).in('id', list); // новые колонки появляются после миграций 009 и 012
+      if (!r.error) break;
+    }
     return r.data;
   };
   const prods = await loadProducts(ids);
@@ -71,6 +76,9 @@ export async function POST(req: Request) {
   }
   // Дополнительные позиции (соусы, имбирь и т.д.) — тоже по настройкам из БД, цену клиента не берём
   const { cart: cs, deliveryIikoId } = await getSettings();
+  const nowI = nowInTz(cs.tz);
+  const hoursState = openState(nowI, cs.workFrom, cs.workTo, cs.closeCutoff); // заказ вне часов работы не принимаем
+  if (!hoursState.open) return fail(hoursState.message, 403);
   const extraLines: Line[] = [];
   for (const x of b.extras) {
     const e = cs.extras.find((z) => z.id === x.id && z.active);
@@ -89,7 +97,7 @@ export async function POST(req: Request) {
   if (b.receiveType === 'delivery' && minOrder > 0 && subtotal < minOrder) return fail(`Минимальная сумма заказа на доставку ${minOrder} ₽`, 400); // самовывоз — от любой суммы
 
   // Время «ко времени»: не раньше минимального срока (самовывоз и доставка отдельно), в часы работы
-  const nowI = nowInTz(cs.tz); let desiredMin: number | null = null;
+  let desiredMin: number | null = null;
   if (b.desiredTime) {
     const dm = hhmm(b.desiredTime); const lead = b.receiveType === 'delivery' ? cs.deliveryLead[0] : cs.pickupLead[0];
     if (dm == null) return fail('Некорректное время', 400);
@@ -100,8 +108,10 @@ export async function POST(req: Request) {
   }
 
   // Акции: скидки и подарки считаются здесь по данным из БД, значения из браузера не берём
-  const engineLines: EngineLine[] = lines.map((l) => ({ productId: l.product_id ?? '', categoryId: (prods?.find((x) => x.id === l.product_id) as any)?.category_id ?? null, label: l.rawLabel ?? '', price: l.price, qty: l.qty }));
-  const eng = applyPromotions({ lines: engineLines, promos: cs.promos, now: nowI, receive: b.receiveType });
+  const engineLines: EngineLine[] = lines.map((l) => ({ productId: l.product_id ?? '', categoryId: (prods?.find((x) => x.id === l.product_id) as any)?.category_id ?? null, label: l.rawLabel ?? '', price: l.price, qty: l.qty, isPromo: !!(prods?.find((x) => x.id === l.product_id) as any)?.is_promo }));
+  if (b.promoCode && engineLines.some((l) => l.isPromo)) return fail('Промокод нельзя использовать вместе с акционной позицией', 400);
+  // Акции не суммируются: с промокодом акции отключены, из нескольких подходящих действует одна выбранная
+  const eng = applyPromotions({ lines: engineLines, promos: cs.promos, now: nowI, receive: b.receiveType, chosenId: b.promoId ?? null, disabled: !!b.promoCode });
   const gc = checkGifts(eng.slots, b.gifts);
   if (!gc.ok) return fail('Подарки по акции изменились. Обновите корзину', 409);
   const giftLines: Line[] = [];

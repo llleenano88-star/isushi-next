@@ -2,10 +2,11 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { GiftOption } from '@/lib/promotions';
 
-export type CartItem = { key: string; productId: string; name: string; label: string; price: number; qty: number; image?: string | null; extra?: boolean; choices?: string[]; categoryId?: string | null };
+export type CartItem = { key: string; productId: string; name: string; label: string; price: number; qty: number; image?: string | null; extra?: boolean; choices?: string[]; categoryId?: string | null; isPromo?: boolean };
 type State = {
   items: CartItem[]; open: boolean; askExtras: boolean;
-  gifts: Record<string, (GiftOption | null)[]>; zoneId: string | null;
+  gifts: Record<string, (GiftOption | null)[]>; zoneId: string | null; promoChoice: string | null;
+  setPromoChoice: (id: string | null) => void;
   setGift: (promoId: string, idx: number, g: GiftOption | null) => void;
   setZone: (id: string | null) => void;
   add: (i: Omit<CartItem, 'key' | 'qty'>) => void;
@@ -15,7 +16,8 @@ type State = {
   setAsk: (v: boolean) => void;
 };
 export const useCart = create<State>()(persist((set) => ({
-  items: [], open: false, askExtras: false, gifts: {}, zoneId: null,
+  items: [], open: false, askExtras: false, gifts: {}, zoneId: null, promoChoice: null,
+  setPromoChoice: (promoChoice) => set({ promoChoice }),
   setGift: (promoId, idx, g) => set((s) => { const a = [...(s.gifts[promoId] ?? [])]; a[idx] = g; return { gifts: { ...s.gifts, [promoId]: a } }; }),
   setZone: (zoneId) => set({ zoneId }),
   add: (i) => set((s) => {
@@ -28,7 +30,7 @@ export const useCart = create<State>()(persist((set) => ({
   remove: (key) => set((s) => ({ items: s.items.filter((x) => x.key !== key) })),
   setOpen: (open) => set({ open }),
   setAsk: (askExtras) => set({ askExtras }),
-}), { name: 'isushi-cart', partialize: (s) => ({ items: s.items, gifts: s.gifts, zoneId: s.zoneId }) }));
+}), { name: 'isushi-cart', partialize: (s) => ({ items: s.items, gifts: s.gifts, zoneId: s.zoneId, promoChoice: s.promoChoice }) }));
 
 export const selectCount = (s: State) => s.items.reduce((a, i) => a + i.qty, 0);
 export const selectTotal = (s: State) => s.items.reduce((a, i) => a + i.qty * i.price, 0);

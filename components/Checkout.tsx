@@ -22,9 +22,9 @@ function buildSlots(nowMin: number, lead: number, step: number, workFrom: string
   return out;
 }
 
-export default function Checkout({ onDone, settings, receive, subtotal, totals, promoCode, canOrder, deliveryPrice, freeFrom, zoneId, gifts, actionDiscount }: {
+export default function Checkout({ onDone, settings, receive, subtotal, totals, promoCode, canOrder, deliveryPrice, freeFrom, zoneId, gifts, actionDiscount, promoId }: {
   onDone: (number: string) => void; settings: PublicSettings; receive: 'delivery' | 'pickup'; subtotal: number; totals: TotalsT; promoCode?: string; canOrder: boolean;
-  deliveryPrice: number; freeFrom: number; zoneId?: string; gifts: { promoId: string; productId: string; label: string }[]; actionDiscount: number;
+  deliveryPrice: number; freeFrom: number; promoId?: string; zoneId?: string; gifts: { promoId: string; productId: string; label: string }[]; actionDiscount: number;
 }) {
   const items = useCart((s) => s.items); const key = useRef(crypto.randomUUID());
   const [f, setF] = useState({ name: '', phone: '', street: '', apt: '', floor: '', intercom: '', time: '', comment: '' });
@@ -52,7 +52,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
     const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
       name: f.name, phone: f.phone, receiveType: receive, address: receive === 'delivery' ? address : undefined, paymentMethod: pay, comment: comment || undefined,
       idempotencyKey: key.current, turnstileToken: token, promoCode: promoCode || undefined, clientTotal: totals.total,
-      ...(when === 'time' && f.time ? { desiredTime: f.time } : {}), ...(receive === 'delivery' && zoneId ? { zoneId } : {}), gifts,
+      ...(when === 'time' && f.time ? { desiredTime: f.time } : {}), ...(receive === 'delivery' && zoneId ? { zoneId } : {}), ...(promoId ? { promoId } : {}), gifts,
       items: items.filter((i) => !i.extra).map((i) => ({ productId: i.productId, label: i.label, qty: i.qty, ...(i.choices?.length ? { choices: i.choices } : {}) })),
       extras: items.filter((i) => i.extra).map((i) => ({ id: i.productId, qty: i.qty })) }) });
     const j = await r.json().catch(() => ({})); setBusy(false);
@@ -60,7 +60,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
     onDone(j.number);
   };
   const payBtn = (v: 'cash' | 'card', label: string) => (
-    <button type="button" onClick={() => setPay(v)} className={`min-h-12 flex-1 rounded-full px-4 text-sm font-extrabold uppercase ${pay === v ? 'bg-brand text-white' : 'bg-blush text-ink'}`}>{label}</button>
+    <button type="button" onClick={() => setPay(v)} className={`min-h-12 flex-1 rounded-full px-4 text-sm font-extrabold ${pay === v ? 'bg-brand text-white' : 'bg-blush text-ink'}`}>{label}</button>
   );
   return (
     <div className="mt-6 rounded-[28px] bg-card p-5 shadow-soft" onFocus={(e) => (e.target as HTMLElement).scrollIntoView?.({ block: 'center', behavior: 'smooth' })}>
@@ -92,7 +92,8 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
         <input className={`${line} md:col-span-2`} placeholder="Комментарий к заказу" value={f.comment} onChange={set('comment')} />
       </div>
       <p className="mb-2 mt-5 text-sm font-bold">Способ оплаты</p>
-      <div className="flex flex-col gap-2 sm:flex-row">{payBtn('card', receive === 'delivery' ? 'Переводом при получении' : 'Картой')}{payBtn('cash', 'Наличными')}</div>
+      <div className="flex flex-col gap-2 sm:flex-row">{payBtn('card', 'Переводом или QR-кодом')}{payBtn('cash', 'Наличными')}</div>
+      <p className="mt-2 text-xs text-mute">Оплата только при получении заказа</p>
       {siteKey && <div ref={box} className="mt-4 flex justify-center" />}
       <Totals subtotal={subtotal} totals={totals} receive={receive} deliveryPrice={deliveryPrice} freeFrom={freeFrom} promoCode={promoCode} actionDiscount={actionDiscount} />
       {settings.deliveryTime && receive === 'delivery' && <p className="mt-3 text-center text-sm text-mute">{settings.deliveryTime}</p>}

@@ -5,7 +5,7 @@ import { cleanOptions } from '@/lib/options';
 import { ChoiceIcon } from './PepperIcon';
 import Badges from './Badges';
 
-export type Product = { id: string; category_id?: string; name: string; description: string | null; image_url: string | null; is_new: boolean; variants: { label: string; price: number }[]; options?: unknown; is_spicy?: boolean; is_hit?: boolean };
+export type Product = { id: string; category_id?: string; name: string; description: string | null; image_url: string | null; is_new: boolean; variants: { label: string; price: number }[]; options?: unknown; is_spicy?: boolean; is_hit?: boolean; is_promo?: boolean };
 
 // Фото показываем только в самом меню (в окне выбора количества и в корзине фото нет)
 function Photo({ url, className }: { url: string | null; className: string }) {
@@ -25,7 +25,7 @@ export default function ProductCard({ p }: { p: Product }) {
   const picked = hasOpts && groups.every((_, gi) => !!sel[gi]);
   const single = p.variants.length === 1 && !hasOpts; const v0 = p.variants[0]; const min = Math.min(...p.variants.map((v) => v.price));
   const line = single && m ? items.find((i) => i.key === `${p.id}:${v0.label}`) : undefined;
-  const put = (v: { label: string; price: number }) => add({ productId: p.id, name: p.name, label: v.label, price: v.price, image: p.image_url, categoryId: p.category_id ?? null, ...(hasOpts ? { choices: groups.map((_, gi) => sel[gi]) } : {}) });
+  const put = (v: { label: string; price: number }) => add({ productId: p.id, name: p.name, label: v.label, price: v.price, image: p.image_url, categoryId: p.category_id ?? null, isPromo: !!p.is_promo, ...(hasOpts ? { choices: groups.map((_, gi) => sel[gi]) } : {}) });
 
   const pill = 'flex h-12 w-full items-center justify-center rounded-full bg-blush text-base font-extrabold text-accent transition ease-spring active:scale-95';
   const control = single && line ? (
@@ -40,7 +40,7 @@ export default function ProductCard({ p }: { p: Product }) {
     <button onClick={() => setOpen(true)} className={pill}>от {min} ₽</button>
   );
 
-  const badges = <Badges hit={p.is_hit} spicy={p.is_spicy} isNew={p.is_new} />;
+  const badges = <Badges hit={p.is_hit} spicy={p.is_spicy} isNew={p.is_new} promo={p.is_promo} />;
   return (
     <>
       <article id={`p-${p.id}`} className="flex gap-4 md:flex-col md:gap-0">

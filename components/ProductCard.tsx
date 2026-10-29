@@ -7,10 +7,13 @@ import Badges from './Badges';
 
 export type Product = { id: string; category_id?: string; name: string; description: string | null; image_url: string | null; is_new: boolean; variants: { label: string; price: number }[]; options?: unknown; is_spicy?: boolean; is_hit?: boolean; is_promo?: boolean };
 
+const PHOTO_BG = '#f3f3f3'; // цвет фона под фото блюд
+
 // Фото показываем только в самом меню (в окне выбора количества и в корзине фото нет)
 function Photo({ url, className }: { url: string | null; className: string }) {
   return (
-    <div className={`bg-cover bg-center ${url ? 'bg-white' : 'grid place-items-center bg-blush'} ${className}`} style={url ? { backgroundImage: `url(${url})` } : undefined}>
+    // Под всеми фото один и тот же светло-серый фон. Режим darken делает белый и прозрачный фон картинки серым, а уже серый и тёмные части блюда не меняет.
+    <div className={`bg-cover bg-center ${url ? '[background-blend-mode:darken]' : 'grid place-items-center bg-blush'} ${className}`} style={url ? { backgroundImage: `url(${url})`, backgroundColor: PHOTO_BG } : undefined}>
       {!url && <span className="text-5xl opacity-70" aria-hidden>🍣</span>}
     </div>
   );

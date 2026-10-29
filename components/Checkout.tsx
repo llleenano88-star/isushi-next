@@ -5,6 +5,7 @@ import { useCart } from '@/lib/store/cart';
 import type { Totals as TotalsT } from '@/lib/pricing';
 import type { PublicSettings } from '@/lib/types';
 import { hhmm, nowInTz } from '@/lib/promotions';
+import { geocodeAddress, zoneAt } from '@/lib/geo';
 
 const line = 'w-full border-b border-black/25 bg-transparent px-1 py-3 text-base font-semibold outline-none placeholder:font-normal placeholder:text-mute focus:border-accent';
 const Check = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
@@ -26,10 +27,11 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
   onDone: (number: string) => void; settings: PublicSettings; receive: 'delivery' | 'pickup'; subtotal: number; totals: TotalsT; promoCode?: string; canOrder: boolean;
   deliveryPrice: number; freeFrom: number; promoId?: string; zoneId?: string; gifts: { promoId: string; productId: string; label: string }[]; actionDiscount: number;
 }) {
-  const items = useCart((s) => s.items); const key = useRef(crypto.randomUUID());
-  const [f, setF] = useState({ name: '', phone: '', street: '', apt: '', floor: '', intercom: '', time: '', comment: '' });
-  const [house, setHouse] = useState(false); const [noBell, setNoBell] = useState(false); const [when, setWhen] = useState('asap'); const [pay, setPay] = useState<'cash' | 'card'>('cash');
-  const [busy, setBusy] = useState(false); const [msg, setMsg] = useState('');
+  const items = useCart((s) => s.items); const setZone = useCart((s) => s.setZone); const key = useRef(crypto.randomUUID());
+  const [f, setF] = useState({ name: '', phone: '', street: '', houseNo: '', apt: '', floor: '', intercom: '', time: '', comment: '' });
+  const [house, setHouse] = useState(false); const [noBell, setNoBell] = useState(false); const [when, setWhen] = useState('asap'); const [pay, setPay] = useState<'cash' | 'transfer' | 'qr'>('cash');
+  const [busy, setBusy] = useState(false); const [msg, setMsg] = useState(''); const [tried, setTried] = useState(false);
+  const [zst, setZst] = useState<{ kind: 'idle' | 'busy' | 'ok' | 'out' | 'nf'; text: string }>({ kind: 'idle', text: '' });
   const [token, setToken] = useState(''); const box = useRef<HTMLDivElement>(null); const wid = useRef('');
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   useEffect(() => {
@@ -41,16 +43,51 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
   const lead = receive === 'delivery' ? settings.deliveryLead : settings.pickupLead;
   const slots = useMemo(() => buildSlots(nowInTz(settings.tz).minutes, lead[0], settings.slotStep, settings.workFrom, settings.workTo), [settings.tz, settings.slotStep, settings.workFrom, settings.workTo, lead]); // eslint-disable-line react-hooks/exhaustive-deps
   const timeOk = when !== 'time' || slots.includes(f.time);
+
+  // Зона доставки определяется по адресу (улица + дом), клиент её не выбирает. От зоны зависит стоимость доставки.
+  const needZone = receive === 'delivery' && settings.zones.length > 0; const firstRun = useRef(true);
+  useEffect(() => {
+    if (!needZone) return;
+    if (!firstRun.current) setZone(null); // адрес поменялся: зону определяем заново
+    firstRun.current = false;
+    if (f.street.trim().length < 3 || !f.houseNo.trim()) { setZst({ kind: 'idle', text: '' }); return; }
+    let dead = false;
+    const t = setTimeout(async () => {
+      setZst({ kind: 'busy', text: 'Определяем зону доставки…' });
+      const p = await geocodeAddress(`${f.street.trim()} ${f.houseNo.trim()}`, settings.city);
+      if (dead) return;
+      if (!p) { setZst({ kind: 'nf', text: 'Не удалось найти адрес на карте. Проверьте улицу и номер дома или выберите зону вручную.' }); return; }
+      const z = zoneAt(settings.zones, p.lat, p.lng);
+      if (z) { setZone(z.id); setZst({ kind: 'ok', text: `Зона доставки: «${z.name}»` }); }
+      else setZst({ kind: 'out', text: 'Этот адрес вне зон доставки. Позвоните нам, и мы подскажем.' });
+    }, 900);
+    return () => { dead = true; clearTimeout(t); };
+  }, [f.street, f.houseNo, needZone]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Обязательные поля
+  const errs: Record<string, string> = {};
+  if (f.name.trim().length < 2) errs.name = 'Укажите имя';
+  if (f.phone.replace(/\D/g, '').length < 10) errs.phone = 'Укажите телефон полностью';
+  if (receive === 'delivery') {
+    if (f.street.trim().length < 3) errs.street = 'Укажите улицу';
+    if (!f.houseNo.trim()) errs.house = 'Укажите номер дома';
+    if (needZone && !zoneId) errs.zone = 'Не определена зона доставки: проверьте адрес';
+  }
+  if (!timeOk) errs.time = 'Выберите время';
+  if (siteKey && !token) errs.captcha = 'Подтвердите, что вы не робот';
+  const bad = (k: string) => (tried && errs[k] ? ' border-red-500' : '');
+  const hint = (k: string) => (tried && errs[k] ? <p className="-mt-1 pb-1 text-xs font-semibold text-red-500">{errs[k]}</p> : null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
 
-  const can = canOrder && items.length > 0 && f.name.trim().length >= 2 && f.phone.replace(/\D/g, '').length >= 10 && (receive === 'pickup' || f.street.trim().length > 2) && (!siteKey || !!token) && timeOk;
   const send = async () => {
+    if (!canOrder || items.length === 0) return;
+    if (Object.keys(errs).length) { setTried(true); setMsg(`Заполните обязательные поля: ${Object.values(errs).join('; ')}`); return; }
     setBusy(true); setMsg('');
-    const address = [f.street.trim(), house ? 'частный дом' : f.apt.trim() && `кв./офис ${f.apt.trim()}`, !house && f.floor.trim() && `этаж ${f.floor.trim()}`,
+    const address = [`${f.street.trim()}, д. ${f.houseNo.trim()}`, house ? 'частный дом' : f.apt.trim() && `кв./офис ${f.apt.trim()}`, !house && f.floor.trim() && `этаж ${f.floor.trim()}`,
       noBell ? 'домофон не работает' : f.intercom.trim() && `домофон ${f.intercom.trim()}`].filter(Boolean).join(', ');
     const comment = f.comment.trim();
     const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      name: f.name, phone: f.phone, receiveType: receive, address: receive === 'delivery' ? address : undefined, paymentMethod: pay, comment: comment || undefined,
+      name: f.name.trim(), phone: f.phone, receiveType: receive, address: receive === 'delivery' ? address : undefined, ...(receive === 'delivery' ? { street: f.street.trim(), house: f.houseNo.trim() } : {}), paymentMethod: pay, comment: comment || undefined,
       idempotencyKey: key.current, turnstileToken: token, promoCode: promoCode || undefined, clientTotal: totals.total,
       ...(when === 'time' && f.time ? { desiredTime: f.time } : {}), ...(receive === 'delivery' && zoneId ? { zoneId } : {}), ...(promoId ? { promoId } : {}), gifts,
       items: items.filter((i) => !i.extra).map((i) => ({ productId: i.productId, label: i.label, qty: i.qty, ...(i.choices?.length ? { choices: i.choices } : {}) })),
@@ -59,18 +96,25 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
     if (!r.ok) { setMsg(j.error ?? 'Ошибка'); if (wid.current) { (window as any).turnstile.reset(wid.current); setToken(''); } return; }
     onDone(j.number);
   };
-  const payBtn = (v: 'cash' | 'card', label: string) => (
+  const payBtn = (v: 'cash' | 'transfer' | 'qr', label: string) => (
     <button type="button" onClick={() => setPay(v)} className={`min-h-12 flex-1 rounded-full px-4 text-sm font-extrabold ${pay === v ? 'bg-brand text-white' : 'bg-blush text-ink'}`}>{label}</button>
   );
   return (
     <div className="mt-6 rounded-[28px] bg-card p-5 shadow-soft" onFocus={(e) => (e.target as HTMLElement).scrollIntoView?.({ block: 'center', behavior: 'smooth' })}>
       <p className="mb-2 text-sm font-bold">{receive === 'delivery' ? 'Доставка' : 'Самовывоз'}</p>
       <div className="grid gap-x-8 gap-y-1 md:grid-cols-2">
-        <input className={line} placeholder="Имя" autoComplete="name" value={f.name} onChange={set('name')} />
-        <input className={line} placeholder="Номер телефона" type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={set('phone')} />
+        <div><input className={`${line}${bad('name')}`} placeholder="Имя *" autoComplete="name" value={f.name} onChange={set('name')} />{hint('name')}</div>
+        <div><input className={`${line}${bad('phone')}`} placeholder="Номер телефона *" type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={set('phone')} />{hint('phone')}</div>
         {receive === 'delivery' && (
           <>
-            <input className={`${line} md:col-span-2`} placeholder="Адрес доставки (улица, дом)" autoComplete="street-address" value={f.street} onChange={set('street')} />
+            <div><input className={`${line}${bad('street')}`} placeholder="Улица *" autoComplete="address-line1" value={f.street} onChange={set('street')} />{hint('street')}</div>
+            <div><input className={`${line}${bad('house')}`} placeholder="Дом *" autoComplete="address-line2" value={f.houseNo} onChange={set('houseNo')} />{hint('house')}</div>
+            {needZone && zst.text && <p className={`md:col-span-2 rounded-2xl px-4 py-2 text-sm font-semibold ${zst.kind === 'ok' ? 'bg-[#e6f6e3] text-[#1f6b16]' : zst.kind === 'busy' ? 'text-mute' : 'bg-[#ffe9ec] text-[#b3261e]'}`}>{zst.text}</p>}
+            {needZone && zst.kind === 'nf' && (
+              <select className={`${line} md:col-span-2`} value={zoneId ?? ''} onChange={(e) => setZone(e.target.value || null)} aria-label="Зона доставки (если адрес не нашёлся)">
+                <option value="">Выберите зону вручную</option>{settings.zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+              </select>
+            )}
             <Check label="Частный дом" checked={house} onChange={setHouse} />
             <span />
             {!house && <input className={line} placeholder="Квартира / офис" value={f.apt} onChange={set('apt')} />}
@@ -89,16 +133,17 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
             </select>
           ) : <p className="py-3 text-sm text-mute">На сегодня свободного времени уже нет, выберите «Как можно скорее»</p>
         ) : <span />}
-        <input className={`${line} md:col-span-2`} placeholder="Комментарий к заказу" value={f.comment} onChange={set('comment')} />
+         <input className={`${line} md:col-span-2`} placeholder="Комментарий к заказу" value={f.comment} onChange={set('comment')} />
       </div>
       <p className="mb-2 mt-5 text-sm font-bold">Способ оплаты</p>
-      <div className="flex flex-col gap-2 sm:flex-row">{payBtn('card', 'Переводом или QR-кодом')}{payBtn('cash', 'Наличными')}</div>
+      <div className="flex flex-col gap-2 sm:flex-row">{payBtn('transfer', 'Переводом')}{payBtn('qr', 'QR-кодом')}{payBtn('cash', 'Наличными')}</div>
       <p className="mt-2 text-xs text-mute">Оплата только при получении заказа</p>
       {siteKey && <div ref={box} className="mt-4 flex justify-center" />}
+      {tried && errs.captcha && <p className="mt-1 text-center text-xs font-semibold text-red-500">{errs.captcha}</p>}
       <Totals subtotal={subtotal} totals={totals} receive={receive} deliveryPrice={deliveryPrice} freeFrom={freeFrom} promoCode={promoCode} actionDiscount={actionDiscount} />
       {settings.deliveryTime && receive === 'delivery' && <p className="mt-3 text-center text-sm text-mute">{settings.deliveryTime}</p>}
       {msg && <p className="mt-3 text-sm text-red-500">{msg}</p>}
-      <button onClick={send} disabled={busy || !can} className="mt-4 h-14 w-full rounded-full bg-brand text-lg font-bold text-white disabled:opacity-50">{busy ? 'Отправляем…' : `Подтвердить заказ · ${totals.total} ₽`}</button>
+      <button onClick={send} disabled={busy || !canOrder} className="mt-4 h-14 w-full rounded-full bg-brand text-lg font-bold text-white disabled:opacity-50">{busy ? 'Отправляем…' : `Подтвердить заказ · ${totals.total} ₽`}</button>
     </div>
   );
 }

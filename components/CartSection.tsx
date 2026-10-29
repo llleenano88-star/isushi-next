@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Checkout from './Checkout';
 import Totals from './Totals';
-import ZonePicker from './ZonePicker';
 import { useCart } from '@/lib/store/cart';
 import { ChoiceIcon } from './PepperIcon';
 import { computeTotals, type PromoRule } from '@/lib/pricing';
@@ -46,9 +45,10 @@ export default function CartSection({ settings }: { settings: PublicSettings }) 
   const deliveryPrice = zone?.price ?? settings.deliveryPrice; const freeFrom = zone?.freeFrom ?? settings.freeDeliveryFrom; const minOrder = zone?.minOrder ?? settings.minOrder;
   const totals = computeTotals({ subtotal, receive, deliveryPrice, freeFrom, promo: activePromo, extraDiscount: eng.discount });
   const short = receive === 'delivery' ? Math.max(0, minOrder - subtotal) : 0; // минимальная сумма только для доставки, самовывоз от любой суммы
-  const zoneOk = !needZone || !!zone; const minOk = short === 0; const canOrder = minOk && zoneOk && open.open;
+  const minOk = short === 0; const canOrder = minOk && open.open; // зону определяет оформление заказа по адресу
   const tel = settings.phone.replace(/[^\d+]/g, '');
   const pickOffer = (id: string) => { if (activePromo) { setPromo(null); setPromoMsg(''); setPromoInput(''); setNotice(ONE_PROMO_MSG); } setPromoChoice(id); };
+  const orderDone = (number: string) => { useCart.setState({ items: [], gifts: {}, promoChoice: null }); setPromo(null); setPromoInput(''); setPromoMsg(''); setForm(false); setDone(number); }; // корзина очищается сразу после оформления
   const finish = () => { useCart.setState({ items: [], gifts: {}, promoChoice: null }); setDone(''); setForm(false); setPromo(null); setPromoInput(''); setPromoMsg(''); };
 
   const applyPromo = async () => {
@@ -160,14 +160,13 @@ export default function CartSection({ settings }: { settings: PublicSettings }) 
           {promo && <button onClick={() => { setPromo(null); setPromoMsg(''); setPromoInput(''); }} className="mt-1 text-xs font-bold text-mute underline">Убрать промокод</button>}
 
           <div className="mt-4 flex gap-2">{tab('delivery', 'Доставка')}{tab('pickup', 'Самовывоз')}</div>
-          {needZone && <ZonePicker zones={settings.zones} text={settings.zoneText} city={settings.city} defaultPrice={settings.deliveryPrice} selectedId={zone?.id ?? null} onSelect={setZone} />}
+          {needZone && !zone && !form && <p className="mt-3 text-center text-sm text-mute">Стоимость доставки определится по вашему адресу при оформлении заказа.</p>}
           {!form && <Totals subtotal={subtotal} totals={totals} receive={receive} deliveryPrice={deliveryPrice} freeFrom={freeFrom} promoCode={activePromo?.code} actionDiscount={eng.discount} />}
           {settings.deliveryTime && receive === 'delivery' && !form && <p className="mt-3 text-center text-sm text-mute">{settings.deliveryTime}</p>}
-          {needZone && !zone && <p className="mt-3 text-center text-sm font-semibold text-red-500">Выберите зону доставки на карте или кнопкой</p>}
           {!minOk && <p className="mt-3 text-center text-sm font-semibold text-red-500">Минимальная сумма заказа на доставку {minOrder} ₽. Добавьте ещё на {short} ₽ или выберите самовывоз</p>}
           {!open.open && <p className="mt-3 rounded-2xl bg-[#ffe9ec] px-4 py-3 text-center text-sm font-bold text-[#b3261e]">{open.message}</p>}
           {!form && <button onClick={() => setForm(true)} disabled={!canOrder} className="mx-auto mt-4 flex h-14 w-full max-w-sm items-center justify-center rounded-full bg-brand px-10 text-lg font-bold text-white disabled:opacity-50">Оформить заказ</button>}
-          {form && <Checkout onDone={setDone} settings={settings} receive={receive} subtotal={subtotal} totals={totals} promoCode={activePromo?.code} canOrder={canOrder} promoId={eng.selected?.promoId} deliveryPrice={deliveryPrice} freeFrom={freeFrom} zoneId={zone?.id} gifts={chosenGifts.map((g) => ({ promoId: g.promoId, productId: g.productId, label: g.label }))} actionDiscount={eng.discount} />}
+          {form && <Checkout onDone={orderDone} settings={settings} receive={receive} subtotal={subtotal} totals={totals} promoCode={activePromo?.code} canOrder={canOrder} promoId={eng.selected?.promoId} deliveryPrice={deliveryPrice} freeFrom={freeFrom} zoneId={zone?.id} gifts={chosenGifts.map((g) => ({ promoId: g.promoId, productId: g.productId, label: g.label }))} actionDiscount={eng.discount} />}
         </>
       )}
       {phoneBlock}

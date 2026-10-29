@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import type { Zone } from '@/lib/types';
+import { geocodeAddress, zoneAt } from '@/lib/geo';
 
 // Карта OpenFreeMap (MapLibre): без ключа, без значков заведений и флагов
 const ML_JS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js';
@@ -19,16 +20,6 @@ function loadMapLibre(): Promise<any> {
   });
 }
 const ring = (poly: [number, number][]) => { const r = poly.map(([lat, lng]) => [lng, lat]); r.push(r[0]); return r; };
-
-// Точка внутри многоугольника (координаты [широта, долгота])
-function inside(pt: [number, number], poly: [number, number][]): boolean {
-  let c = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const [yi, xi] = poly[i]; const [yj, xj] = poly[j];
-    if (yi > pt[0] !== yj > pt[0] && pt[1] < ((xj - xi) * (pt[0] - yi)) / (yj - yi) + xi) c = !c;
-  }
-  return c;
-}
 
 // Превращает телефон в тексте в ссылку «позвонить»
 function Linked({ text }: { text: string }) {
@@ -52,19 +43,16 @@ export default function ZonePicker({ zones, text, city, defaultPrice, selectedId
   const check = (lat: number, lng: number, move = false) => {
     const ml = (window as any).maplibregl; const m = mapRef.current;
     if (ml && m) { if (marker.current) marker.current.remove(); marker.current = new ml.Marker({ color: '#d81b7a' }).setLngLat([lng, lat]).addTo(m); if (move) m.flyTo({ center: [lng, lat], zoom: 15 }); }
-    const z = zonesRef.current.find((x) => x.polygon.length >= 3 && inside([lat, lng], x.polygon));
+    const z = zoneAt(zonesRef.current, lat, lng);
     if (z) { onSel.current(z.id); setStatus({ kind: 'ok', text: `Доставка возможна: зона «${z.name}». Стоимость доставки: ${priceText(z)}` }); }
     else setStatus({ kind: 'out', text: 'Этот адрес вне зон доставки. Если есть вопросы, позвоните нам.' });
   };
   const search = async () => {
     const q = addr.trim(); if (q.length < 3) return;
     setStatus({ kind: 'busy', text: 'Ищем адрес…' });
-    try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ru&countrycodes=ru&q=${encodeURIComponent(`${q}, ${city}`)}`);
-      const j = await r.json();
-      if (!Array.isArray(j) || !j[0]) { setStatus({ kind: 'nf', text: 'Адрес не найден. Уточните улицу и номер дома или поставьте точку на карте.' }); return; }
-      check(Number(j[0].lat), Number(j[0].lon), true);
-    } catch { setStatus({ kind: 'nf', text: 'Не удалось найти адрес. Поставьте точку на карте или выберите зону кнопкой.' }); }
+    const p = await geocodeAddress(q, city);
+    if (!p) { setStatus({ kind: 'nf', text: 'Адрес не найден. Уточните улицу и номер дома или поставьте точку на карте.' }); return; }
+    check(p.lat, p.lng, true);
   };
 
   useEffect(() => {
@@ -99,21 +87,17 @@ export default function ZonePicker({ zones, text, city, defaultPrice, selectedId
   return (
     <div className="mt-4 rounded-[24px] bg-card p-4 shadow-soft">
       <p className="rounded-2xl bg-blush px-4 py-3 text-sm font-semibold leading-snug"><Linked text={text} /></p>
-      <p className="mb-2 mt-4 text-sm font-extrabold">Проверьте свой адрес</p>
+      <p className="mb-2 mt-4 text-sm font-extrabold">Проверьте, доставляем ли мы к вам</p>
       <div className="flex gap-2">
         <input value={addr} onChange={(e) => setAddr(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} placeholder="Улица и номер дома" aria-label="Адрес доставки" className="h-12 min-w-0 flex-1 rounded-full border border-black/10 bg-card px-5 font-semibold outline-none focus:ring-2 focus:ring-accent" />
         <button type="button" onClick={search} className="h-12 shrink-0 rounded-full bg-brand px-5 font-bold text-white">Найти</button>
       </div>
       {status.text && <p className={`mt-2 rounded-2xl px-4 py-2 text-sm font-semibold ${status.kind === 'ok' ? 'bg-[#e6f6e3] text-[#1f6b16]' : status.kind === 'busy' ? 'text-mute' : 'bg-[#ffe9ec] text-[#b3261e]'}`}>{status.text}</p>}
       <div ref={box} className="mt-3 h-64 w-full overflow-hidden rounded-2xl bg-blush md:h-80" />
-      {mapErr && <p className="mt-1 text-xs text-red-500">Карта не открылась на этом устройстве. Выберите зону кнопкой ниже.</p>}
-      <p className="mt-1 text-xs text-mute">Нажмите на карту, чтобы поставить точку (на телефоне двигайте карту двумя пальцами), или выберите зону кнопкой ниже.</p>
+      {mapErr && <p className="mt-1 text-xs text-red-500">Карта не открылась на этом устройстве, но проверить адрес можно полем выше.</p>}
+      <p className="mt-1 text-xs text-mute">Можно также нажать на карту (на телефоне двигайте карту двумя пальцами). Стоимость доставки посчитается при оформлении заказа по вашему адресу.</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        {zones.map((z) => (
-          <button key={z.id} type="button" aria-pressed={selectedId === z.id} onClick={() => onSelect(z.id)} className={`flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-bold ${selectedId === z.id ? 'bg-brand text-white' : 'bg-blush text-ink'}`}>
-            <span className="h-3 w-3 rounded-full" style={{ background: z.color }} />{z.name}<span className="opacity-80">· {priceText(z)}</span>
-          </button>
-        ))}
+        {zones.map((z) => <span key={z.id} className="flex min-h-9 items-center gap-2 rounded-full bg-blush px-3 text-xs font-bold"><span className="h-3 w-3 rounded-full" style={{ background: z.color }} />{z.name}<span className="opacity-70">· {priceText(z)}</span></span>)}
       </div>
     </div>
   );

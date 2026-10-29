@@ -18,9 +18,10 @@ export default async function MenuSection({ categoryImages, categoryImagesMobile
   // options, is_spicy и is_hit появляются после миграций 009–011; если их ещё нет, грузим без них, чтобы меню не пропало
   const prodsQ = async () => {
     const base = 'id,category_id,name,description,image_url,is_new,variants';
-    for (const cols of [`${base},options,is_spicy,is_hit,is_promo`, `${base},options,is_spicy,is_hit`, `${base},options,is_spicy`, `${base},options`, base]) {
-      const r = await db.from('products').select(cols).eq('is_available', true);
-      if (!r.error) return r.data as unknown as any[];
+    // sort_order (порядок блюд) появляется после миграции 013, остальные колонки после 009–012
+    for (const sort of [',sort_order', '']) for (const cols of [`${base},options,is_spicy,is_hit,is_promo`, `${base},options,is_spicy,is_hit`, `${base},options,is_spicy`, `${base},options`, base]) {
+      const r = await db.from('products').select(cols + sort).eq('is_available', true);
+      if (!r.error) return (r.data as unknown as any[]).sort((a, b) => (a.sort_order ?? 1000) - (b.sort_order ?? 1000) || String(a.name).localeCompare(String(b.name), 'ru'));
     }
     return [] as any[];
   };

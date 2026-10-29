@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import Banners from '@/components/Banners';
 import MenuSection, { MenuSkeleton } from '@/components/MenuSection';
 import CartSection from '@/components/CartSection';
+import DeliveryMap from '@/components/DeliveryMap';
 import PromoStrip from '@/components/PromoStrip';
 import QuestionsBlock from '@/components/QuestionsBlock';
 import { getSettings } from '@/lib/settings';
@@ -24,6 +25,7 @@ export default async function Home() {
           {about.outro && <p>{about.outro}</p>}
         </div>
       </section>
+      <DeliveryMap settings={cart} />
       <QuestionsBlock q={questions} />
       {mapEmbed && <iframe src={mapEmbed} title="Карта" loading="lazy" className="mt-6 h-72 w-full rounded-[28px] border-0" />}
     </div>

@@ -16,7 +16,9 @@ const Body = z.object({
   phone: z.string().transform((s) => s.replace(/\D/g, '')).pipe(z.string().regex(/^[78]\d{10}$/)),
   receiveType: z.enum(['delivery', 'pickup']),
   address: z.string().trim().max(200).optional(),
-  paymentMethod: z.enum(['cash', 'card']),
+  paymentMethod: z.enum(['cash', 'transfer', 'qr', 'card']), // card оставлен для старых корзин
+  street: z.string().trim().max(120).optional(),
+  house: z.string().trim().max(30).optional(),
   comment: z.string().trim().max(300).optional(),
   turnstileToken: z.string().optional(),
   promoCode: z.string().trim().max(40).optional(),
@@ -27,7 +29,7 @@ const Body = z.object({
   zoneId: z.string().uuid().optional(),
   promoId: z.string().uuid().optional(),
   desiredTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-}).refine((b) => b.receiveType === 'pickup' || !!b.address, { message: 'Укажите адрес', path: ['address'] });
+}).refine((b) => b.receiveType === 'pickup' || (!!b.address && !!b.street && !!b.house), { message: 'Укажите улицу и номер дома', path: ['address'] });
 
 type Line = { product_id: string | null; name: string; variant_label: string | null; price: number; qty: number; iikoId: string | null; sizeId?: string | null; choice?: string | null; rawLabel?: string };
 const fail = (error: string, status: number) => NextResponse.json({ error }, { status });

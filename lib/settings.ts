@@ -3,7 +3,7 @@ import { ABOUT, BANNERS, CATEGORY_IMAGES, MAP_EMBED, DELIVERY_TIME, INCLUDED_NOT
 import type { Extra, PublicSettings, QuestionsBlock, Zone } from '@/lib/types';
 import type { Promotion, PromoKind } from '@/lib/promotions';
 
-export type Banner = { image: string; href?: string };
+export type Banner = { image: string; mobile?: string; href?: string };
 export type About = typeof ABOUT;
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
@@ -20,10 +20,18 @@ function normImages(v: unknown): Record<string, string> {
   return out;
 }
 
+// Телефон: на сайте всегда один номер. Берём первый полный номер из настроек, иначе номер по умолчанию.
+export const DEFAULT_PHONE = '8 846 202 10 20';
+function pickPhone(raw: string): string {
+  const m = /(?:\+7|8)[\s\-()]*\d{3}[\s\-()]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2}/.exec(raw);
+  const d = (m ? m[0] : '').replace(/\D/g, '');
+  return d.length === 11 ? `8 ${d.slice(1, 4)} ${d.slice(4, 7)} ${d.slice(7, 9)} ${d.slice(9, 11)}` : DEFAULT_PHONE;
+}
+
 // Баннеры: сайт хранит ссылку в href, новая админка — в link
 function normBanners(v: unknown): Banner[] {
   return (v as any[])
-    .map((b) => ({ image: String(b?.image ?? b?.url ?? b?.src ?? '').trim(), href: String(b?.href ?? b?.link ?? '').trim() || undefined }))
+    .map((b) => ({ image: String(b?.image ?? b?.url ?? b?.src ?? '').trim(), mobile: String(b?.image_mobile ?? b?.mobile ?? '').trim() || undefined, href: String(b?.href ?? b?.link ?? '').trim() || undefined }))
     .filter((b) => b.image);
 }
 
@@ -83,7 +91,7 @@ export async function getSettings() {
     })).filter((z: Zone) => z.id && z.name);
   } catch { /* зон нет */ }
   const lead = (a: unknown, b: unknown, da: number, db_: number): [number, number] => { const x = num(a) || da; const y = num(b) || db_; return [Math.min(x, y), Math.max(x, y)]; };
-  const phone = str(m.phone) || str(m.contact_phone);
+  const phone = pickPhone(str(m.phone) || str(m.contact_phone));
   const cart: PublicSettings = {
     deliveryTime: (m.delivery_time as string | undefined) ?? DELIVERY_TIME,
     deliveryPrice: num(m.delivery_price), freeDeliveryFrom: num(m.free_delivery_from), minOrder: num(m.min_order),
@@ -108,6 +116,7 @@ export async function getSettings() {
   return {
     banners: Array.isArray(m.banners) ? normBanners(m.banners) : BANNERS,
     categoryImages: m.category_images ? normImages(m.category_images) : normImages(CATEGORY_IMAGES),
+    categoryImagesMobile: normImages(m.category_images_mobile), // отдельные картинки категорий для телефона (необязательные)
     about: normAbout(m.about),
     mapEmbed: (m.map_embed as string | undefined) ?? MAP_EMBED,
     cart,

@@ -2,23 +2,23 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Zone } from '@/lib/types';
 
-const LEAFLET_JS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
-const LEAFLET_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
-// Чистая светлая карта (без значков заведений и флагов), подписи улиц отдельным слоем поверх зон
-const TILES = 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png';
-const LABELS = 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png';
+// Карта OpenFreeMap (MapLibre): без ключа, без значков заведений и флагов
+const ML_JS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+const ML_CSS = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css';
+const STYLE = 'https://tiles.openfreemap.org/styles/positron';
 
-function loadLeaflet(): Promise<any> {
+function loadMapLibre(): Promise<any> {
   const w = window as any;
-  if (w.L) return Promise.resolve(w.L);
+  if (w.maplibregl) return Promise.resolve(w.maplibregl);
   return new Promise((resolve, reject) => {
-    if (!document.querySelector(`link[href="${LEAFLET_CSS}"]`)) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = LEAFLET_CSS; document.head.appendChild(l); }
-    const ex = document.querySelector(`script[src="${LEAFLET_JS}"]`);
-    const done = () => (w.L ? resolve(w.L) : reject(new Error('leaflet')));
+    if (!document.querySelector(`link[href="${ML_CSS}"]`)) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = ML_CSS; document.head.appendChild(l); }
+    const ex = document.querySelector(`script[src="${ML_JS}"]`);
+    const done = () => (w.maplibregl ? resolve(w.maplibregl) : reject(new Error('maplibre')));
     if (ex) { ex.addEventListener('load', done); return; }
-    const s = document.createElement('script'); s.src = LEAFLET_JS; s.async = true; s.onload = done; s.onerror = () => reject(new Error('leaflet')); document.head.appendChild(s);
+    const sc = document.createElement('script'); sc.src = ML_JS; sc.async = true; sc.onload = done; sc.onerror = () => reject(new Error('maplibre')); document.head.appendChild(sc);
   });
 }
+const ring = (poly: [number, number][]) => { const r = poly.map(([lat, lng]) => [lng, lat]); r.push(r[0]); return r; };
 
 // Точка внутри многоугольника (координаты [широта, долгота])
 function inside(pt: [number, number], poly: [number, number][]): boolean {
@@ -39,16 +39,19 @@ function Linked({ text }: { text: string }) {
 type Status = { kind: 'idle' | 'busy' | 'ok' | 'out' | 'nf'; text: string };
 
 export default function ZonePicker({ zones, text, city, defaultPrice, selectedId, onSelect }: { zones: Zone[]; text: string; city: string; defaultPrice: number; selectedId: string | null; onSelect: (id: string) => void }) {
-  const box = useRef<HTMLDivElement>(null); const layers = useRef<Record<string, any>>({}); const mapRef = useRef<any>(null); const marker = useRef<any>(null);
-  const onSel = useRef(onSelect); onSel.current = onSelect; const zonesRef = useRef(zones); zonesRef.current = zones;
-  const [addr, setAddr] = useState(''); const [status, setStatus] = useState<Status>({ kind: 'idle', text: '' });
-  const style = (id: string) => (id === selectedId ? { weight: 4, fillOpacity: 0.4 } : { weight: 2, fillOpacity: 0.22 });
+  const box = useRef<HTMLDivElement>(null); const mapRef = useRef<any>(null); const ready = useRef(false); const marker = useRef<any>(null);
+  const onSel = useRef(onSelect); onSel.current = onSelect; const zonesRef = useRef(zones); zonesRef.current = zones; const selRef = useRef(selectedId); selRef.current = selectedId;
+  const [addr, setAddr] = useState(''); const [status, setStatus] = useState<Status>({ kind: 'idle', text: '' }); const [mapErr, setMapErr] = useState(false);
   const priceText = (z: Zone) => { const p = z.price ?? defaultPrice; return p > 0 ? `${p} ₽` : 'бесплатно'; };
+  const paint = () => {
+    const m = mapRef.current; if (!m || !ready.current) return;
+    zonesRef.current.forEach((z) => { if (!m.getLayer(`zf-${z.id}`)) return; const on = z.id === selRef.current; m.setPaintProperty(`zf-${z.id}`, 'fill-opacity', on ? 0.4 : 0.22); m.setPaintProperty(`zl-${z.id}`, 'line-width', on ? 4 : 2); });
+  };
 
   // Ставит метку и проверяет, в какую зону попал адрес / клик
   const check = (lat: number, lng: number, move = false) => {
-    const L = (window as any).L; const m = mapRef.current;
-    if (L && m) { if (marker.current) marker.current.remove(); marker.current = L.circleMarker([lat, lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#d81b7a', fillOpacity: 1 }).addTo(m); if (move) m.setView([lat, lng], 15); }
+    const ml = (window as any).maplibregl; const m = mapRef.current;
+    if (ml && m) { if (marker.current) marker.current.remove(); marker.current = new ml.Marker({ color: '#d81b7a' }).setLngLat([lng, lat]).addTo(m); if (move) m.flyTo({ center: [lng, lat], zoom: 15 }); }
     const z = zonesRef.current.find((x) => x.polygon.length >= 3 && inside([lat, lng], x.polygon));
     if (z) { onSel.current(z.id); setStatus({ kind: 'ok', text: `Доставка возможна: зона «${z.name}». Стоимость доставки: ${priceText(z)}` }); }
     else setStatus({ kind: 'out', text: 'Этот адрес вне зон доставки. Если есть вопросы, позвоните нам.' });
@@ -65,27 +68,33 @@ export default function ZonePicker({ zones, text, city, defaultPrice, selectedId
   };
 
   useEffect(() => {
-    let map: any; let dead = false;
-    loadLeaflet().then((L) => {
-      if (dead || !box.current) return;
-      map = L.map(box.current, { scrollWheelZoom: false, attributionControl: true }).setView([53.2, 50.15], 11); mapRef.current = map;
-      L.tileLayer(TILES, { maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap, © CARTO' }).addTo(map);
-      const all: any[] = [];
-      zones.forEach((z) => {
-        if (z.polygon.length < 3) return;
-        const poly = L.polygon(z.polygon, { color: z.color, weight: 2, fillColor: z.color, fillOpacity: 0.22 }).addTo(map);
-        poly.bindTooltip(`${z.name} · ${priceText(z)}`, { sticky: true });
-        layers.current[z.id] = poly; all.push(poly);
-      });
-      map.createPane('labels'); map.getPane('labels').style.zIndex = 650; map.getPane('labels').style.pointerEvents = 'none';
-      L.tileLayer(LABELS, { maxZoom: 19, subdomains: 'abcd', pane: 'labels' }).addTo(map);
-      if (all.length) map.fitBounds(L.featureGroup(all).getBounds(), { padding: [20, 20] });
-      map.on('click', (e: any) => check(e.latlng.lat, e.latlng.lng));
-      Object.entries(layers.current).forEach(([id, l]: [string, any]) => l.setStyle(style(id)));
-    }).catch(() => { /* карта не загрузилась: зону всё равно можно выбрать кнопками */ });
-    return () => { dead = true; if (map) map.remove(); layers.current = {}; mapRef.current = null; marker.current = null; };
+    let dead = false; let map: any = null;
+    loadMapMaybe();
+    function loadMapMaybe() {
+      loadMapLibre().then((ml) => {
+        if (dead || !box.current) return;
+        map = new ml.Map({ container: box.current, style: STYLE, center: [50.15, 53.2], zoom: 10, attributionControl: false, cooperativeGestures: true });
+        mapRef.current = map; ready.current = false;
+        map.addControl(new ml.AttributionControl({ compact: true, customAttribution: 'OpenFreeMap © OpenMapTiles Data from OpenStreetMap' }));
+        map.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right');
+        map.on('load', () => {
+          const bounds = new ml.LngLatBounds(); let any = false;
+          zonesRef.current.forEach((z) => {
+            if (z.polygon.length < 3) return;
+            map.addSource(`z-${z.id}`, { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring(z.polygon)] } } });
+            map.addLayer({ id: `zf-${z.id}`, type: 'fill', source: `z-${z.id}`, paint: { 'fill-color': z.color, 'fill-opacity': 0.22 } });
+            map.addLayer({ id: `zl-${z.id}`, type: 'line', source: `z-${z.id}`, paint: { 'line-color': z.color, 'line-width': 2 } });
+            z.polygon.forEach(([lat, lng]) => { bounds.extend([lng, lat]); any = true; });
+          });
+          ready.current = true; paint();
+          if (any) map.fitBounds(bounds, { padding: 30, duration: 0 });
+        });
+        map.on('click', (e: any) => check(e.lngLat.lat, e.lngLat.lng));
+      }).catch(() => setMapErr(true));
+    }
+    return () => { dead = true; if (map) map.remove(); mapRef.current = null; marker.current = null; ready.current = false; };
   }, [zones]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { Object.entries(layers.current).forEach(([id, l]: [string, any]) => l.setStyle(style(id))); }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(paint, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="mt-4 rounded-[24px] bg-card p-4 shadow-soft">
@@ -97,7 +106,8 @@ export default function ZonePicker({ zones, text, city, defaultPrice, selectedId
       </div>
       {status.text && <p className={`mt-2 rounded-2xl px-4 py-2 text-sm font-semibold ${status.kind === 'ok' ? 'bg-[#e6f6e3] text-[#1f6b16]' : status.kind === 'busy' ? 'text-mute' : 'bg-[#ffe9ec] text-[#b3261e]'}`}>{status.text}</p>}
       <div ref={box} className="mt-3 h-64 w-full overflow-hidden rounded-2xl bg-blush md:h-80" />
-      <p className="mt-1 text-xs text-mute">Нажмите на карту, чтобы поставить точку, или выберите зону кнопкой ниже.</p>
+      {mapErr && <p className="mt-1 text-xs text-red-500">Карта не открылась на этом устройстве. Выберите зону кнопкой ниже.</p>}
+      <p className="mt-1 text-xs text-mute">Нажмите на карту, чтобы поставить точку (на телефоне двигайте карту двумя пальцами), или выберите зону кнопкой ниже.</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {zones.map((z) => (
           <button key={z.id} type="button" aria-pressed={selectedId === z.id} onClick={() => onSelect(z.id)} className={`flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-bold ${selectedId === z.id ? 'bg-brand text-white' : 'bg-blush text-ink'}`}>

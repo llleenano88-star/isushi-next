@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useCart, selectCount, selectTotal } from '@/lib/store/cart';
 import { useUI } from '@/lib/store/ui';
@@ -10,6 +11,7 @@ const Logo = () => <Link href="/" className="text-2xl font-black tracking-wide">
 
 export default function Header({ phone }: { phone?: string }) {
   const [m, setM] = useState(false); useEffect(() => setM(true), []);
+  const path = usePathname(); const router = useRouter(); const setMenuOpen = useUI((s) => s.setMenuOpen);
   const rawCount = useCart(selectCount); const rawTotal = useCart(selectTotal); const setSearchOpen = useUI((s) => s.setSearchOpen);
   const count = m ? rawCount : 0; const total = m ? rawTotal : 0; const tel = (phone ?? '').replace(/[^\d+]/g, '');
   const link = 'flex items-center gap-2 font-semibold text-ink transition-colors hover:text-accent';
@@ -24,7 +26,7 @@ export default function Header({ phone }: { phone?: string }) {
       <div className="mx-auto hidden h-[72px] max-w-7xl items-center gap-8 px-4 md:flex">
         <Logo />
         <nav className="flex items-center gap-7 text-[15px]">
-          <Link href="/#menu" className={link}><Ico><circle cx="5" cy="5" r="1.6" /><circle cx="12" cy="5" r="1.6" /><circle cx="19" cy="5" r="1.6" /><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /><circle cx="5" cy="19" r="1.6" /><circle cx="12" cy="19" r="1.6" /><circle cx="19" cy="19" r="1.6" /></Ico>Меню</Link>
+          <button type="button" onClick={() => (path === '/' ? setMenuOpen(true) : router.push('/#menu'))} className={link}><Ico><circle cx="5" cy="5" r="1.6" /><circle cx="12" cy="5" r="1.6" /><circle cx="19" cy="5" r="1.6" /><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /><circle cx="5" cy="19" r="1.6" /><circle cx="12" cy="19" r="1.6" /><circle cx="19" cy="19" r="1.6" /></Ico>Меню</button>
           {tel && <a href={`tel:${tel}`} className={link}><Ico><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" /></Ico>Контакты</a>}
           <button onClick={() => setSearchOpen(true)} className={link}><Ico><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></Ico>Поиск</button>
           <Link href="/#promos" className={link}>Акции</Link>

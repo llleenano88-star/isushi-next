@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useCart, selectCount } from '@/lib/store/cart';
 import { useUI } from '@/lib/store/ui';
 import CartBadge from './CartBadge';
@@ -17,11 +17,11 @@ const UserIcon = () => <I><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 
 // Нижняя панель на телефоне: тёмная плавающая, по центру круглый значок «наверх / на главную»
 export default function BottomNav() {
   const raw = useCart(selectCount); const [m, setM] = useState(false); useEffect(() => setM(true), []); const count = m ? raw : 0;
-  const path = usePathname(); const setSearchOpen = useUI((s) => s.setSearchOpen);
+  const path = usePathname(); const router = useRouter(); const setSearchOpen = useUI((s) => s.setSearchOpen); const setMenuOpen = useUI((s) => s.setMenuOpen);
   const item = 'flex min-h-16 flex-1 flex-col items-center justify-center gap-1 text-[12px] font-bold uppercase tracking-wide text-[#a7acb4] transition-colors';
   return (
     <nav aria-label="Основное меню" className="fixed inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom))] z-50 flex items-center rounded-[28px] bg-[#16191d] px-2 text-white shadow-soft md:hidden">
-      <Link href="/#menu" className={`${item} ${path === '/' ? 'text-white' : ''}`}><MenuIcon />Меню</Link>
+      <button type="button" onClick={() => (path === '/' ? setMenuOpen(true) : router.push('/#menu'))} className={`${item} ${path === '/' ? 'text-white' : ''}`}><MenuIcon />Меню</button>
       <button type="button" onClick={() => setSearchOpen(true)} className={item}><SearchIcon />Поиск</button>
       <Link href="/" aria-label="На главную" onClick={() => typeof window !== 'undefined' && window.scrollTo({ top: 0, behavior: 'smooth' })} className="mx-1 grid h-[68px] w-[68px] shrink-0 place-items-center rounded-full bg-[#16191d] ring-[3px] ring-[#ee3f9a]">
         <span className="grid h-[54px] w-[54px] place-items-center rounded-full bg-brand text-xl font-black">iS</span>

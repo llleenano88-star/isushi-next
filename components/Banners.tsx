@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 const GAP = 12;
-type B = { image: string; href?: string };
+type B = { image: string; mobile?: string; href?: string };
 export default function Banners({ banners }: { banners: B[] }) {
   const ref = useRef<HTMLDivElement>(null); const [i, setI] = useState(0); const n = banners.length;
   const step = () => { const s = ref.current?.children[0] as HTMLElement | undefined; return s ? s.offsetWidth + GAP : 0; };
@@ -18,7 +18,13 @@ export default function Banners({ banners }: { banners: B[] }) {
       <div ref={ref} onScroll={(e) => { const st = step(); if (st) setI(Math.round(e.currentTarget.scrollLeft / st)); }}
         className="flex snap-x snap-mandatory gap-3 overflow-x-auto [scrollbar-width:none] before:w-[calc(4%_-_12px)] before:shrink-0 before:content-[''] after:w-[calc(4%_-_12px)] after:shrink-0 after:content-[''] md:before:w-[calc(6%_-_12px)] md:after:w-[calc(6%_-_12px)]">
         {banners.map((b, k) => (
-          <a key={k} href={b.href || '#menu'} aria-label={`Баннер ${k + 1}`} className="aspect-[4/3] w-[92%] shrink-0 snap-center rounded-[28px] bg-cover bg-center sm:aspect-[16/9] md:aspect-[5/2] md:w-[84%]" style={{ backgroundImage: `url(${b.image})` }} />
+          <a key={k} href={b.href || '#menu'} aria-label={`Баннер ${k + 1}`} className="block aspect-[4/3] w-[92%] shrink-0 snap-center overflow-hidden rounded-[28px] bg-blush sm:aspect-[16/9] md:aspect-[5/2] md:w-[84%]">
+            {/* на телефоне своя картинка (если загружена), на компьютере основная */}
+            <picture>
+              <source media="(min-width: 768px)" srcSet={b.image} />
+              <img src={b.mobile || b.image} alt="" draggable={false} className="h-full w-full object-cover" />
+            </picture>
+          </a>
         ))}
       </div>
       {n > 1 && (

@@ -8,14 +8,13 @@ import { getSettings } from '@/lib/settings';
 export const revalidate = 60;
 
 export default async function Home() {
-  const { banners, categoryImages, about, mapEmbed, cart, questions } = await getSettings();
+  const { banners, categoryImages, categoryImagesMobile, about, mapEmbed, cart, questions } = await getSettings();
   return (
     <div className="py-2 md:py-4">
       <Banners banners={banners} />
       <PromoStrip promos={cart.promos} />
-      <QuestionsBlock q={questions} compact />
       <div id="menu" className="mt-4 scroll-mt-24" />
-      <Suspense fallback={<MenuSkeleton />}><MenuSection categoryImages={categoryImages} /></Suspense>
+      <Suspense fallback={<MenuSkeleton />}><MenuSection categoryImages={categoryImages} categoryImagesMobile={categoryImagesMobile} /></Suspense>
       <CartSection settings={cart} />
       <section className="rounded-[28px] bg-blush/60 p-6 sm:p-10">
         <h2 className="mb-4 text-center text-3xl font-extrabold">{about.title}</h2>

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import ProductCard, { type Product } from './ProductCard';
 import { useUI } from '@/lib/store/ui';
 
-export default function CategoryBlock({ slug, name, image, products }: { slug: string; name: string; image?: string; products: Product[] }) {
+export default function CategoryBlock({ slug, name, image, imageMobile, products }: { slug: string; name: string; image?: string; imageMobile?: string; products: Product[] }) {
   const [n, setN] = useState(12);
   const q = useUI((s) => s.query).trim().toLowerCase();
   const list = q ? products.filter((p) => `${p.name} ${p.description ?? ''}`.toLowerCase().includes(q)) : products;
@@ -12,7 +12,12 @@ export default function CategoryBlock({ slug, name, image, products }: { slug: s
   return (
     <section id={slug} className="scroll-mt-32 pt-9">
       <h2 className="text-3xl font-extrabold text-accent">{name}</h2>
-      {image && !q && <div className="mt-3 aspect-[16/8] w-full rounded-[28px] bg-cover bg-center md:aspect-[3/1]" style={{ backgroundImage: `url(${image})` }} />}
+      {(image || imageMobile) && !q && (
+        <picture className="mt-3 block aspect-[2/1] w-full overflow-hidden rounded-[28px] bg-blush md:aspect-[3/1]">
+          <source media="(min-width: 768px)" srcSet={image || imageMobile} />
+          <img src={imageMobile || image} alt="" className="h-full w-full object-cover" />
+        </picture>
+      )}
       <div className="mt-5 grid gap-x-6 gap-y-9 md:grid-cols-3 lg:grid-cols-4">{shown.map((p) => <ProductCard key={p.id} p={p} />)}</div>
       {!q && n < list.length && (
         <button onClick={() => setN(n + 12)} className="mt-7 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-blush text-sm font-bold text-accent">

@@ -3,12 +3,12 @@ import { useEffect, useRef, useState } from 'react';
 
 const GAP = 12;
 type B = { image: string; mobile?: string; href?: string };
-export default function Banners({ banners }: { banners: B[] }) {
+export default function Banners({ banners, intervalMs = 1500 }: { banners: B[]; intervalMs?: number }) {
   const ref = useRef<HTMLDivElement>(null); const [i, setI] = useState(0); const n = banners.length; const touched = useRef(0);
   const step = () => { const s = ref.current?.children[0] as HTMLElement | undefined; return s ? s.offsetWidth + GAP : 0; };
   const go = (k: number) => ref.current?.scrollTo({ left: k * step(), behavior: 'smooth' });
-  // листаются сами раз в секунду; если пользователь листает пальцем или мышью, на 4 секунды останавливаются
-  useEffect(() => { if (n < 2) return; const t = setInterval(() => { if (Date.now() - touched.current > 4000) go((i + 1) % n); }, 1000); return () => clearInterval(t); }, [i, n]);
+  // листаются сами (интервал из настроек сайта, по умолчанию 1.5 сек); если пользователь листает пальцем или мышью, на 4 секунды останавливаются
+  useEffect(() => { if (n < 2 || intervalMs <= 0) return; const t = setInterval(() => { if (Date.now() - touched.current > 4000) go((i + 1) % n); }, intervalMs); return () => clearInterval(t); }, [i, n, intervalMs]);
   if (!n) return (
     <a href="#menu" className="grid aspect-[4/3] place-items-center rounded-[28px] bg-brand text-center text-white md:aspect-[5/2]">
       <div><div className="text-4xl font-extrabold tracking-wide sm:text-6xl">ISUSHICLUB</div><div className="mt-2 text-sm font-semibold opacity-90 sm:text-lg">Роллы, суши и пицца с доставкой</div></div>

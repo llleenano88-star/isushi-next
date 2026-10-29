@@ -117,6 +117,7 @@ export async function getSettings() {
     banners: Array.isArray(m.banners) ? normBanners(m.banners) : BANNERS,
     categoryImages: m.category_images ? normImages(m.category_images) : normImages(CATEGORY_IMAGES),
     categoryImagesMobile: normImages(m.category_images_mobile), // отдельные картинки категорий для телефона (необязательные)
+    categoryIcons: normImages(m.category_icons), // значки категорий для окна «Меню»
     about: normAbout(m.about),
     mapEmbed: (m.map_embed as string | undefined) ?? MAP_EMBED,
     cart,

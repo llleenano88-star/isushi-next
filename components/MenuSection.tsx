@@ -8,7 +8,7 @@ export function MenuSkeleton() {
   return <div className="grid gap-4 pt-8 md:grid-cols-4">{Array.from({ length: 6 }, (_, i) => <div key={i} className="skeleton h-40 md:aspect-[3/4] md:h-auto" />)}</div>;
 }
 
-export default async function MenuSection({ categoryImages, categoryImagesMobile = {} }: { categoryImages: Record<string, string>; categoryImagesMobile?: Record<string, string> }) {
+export default async function MenuSection({ categoryImages, categoryImagesMobile = {}, categoryIcons = {} }: { categoryImages: Record<string, string>; categoryImagesMobile?: Record<string, string>; categoryIcons?: Record<string, string> }) {
   const db = supabase();
   // показываем только видимые категории; если колонки is_visible ещё нет (не выполнена миграция 007), показываем все
   const catsQ = async () => {
@@ -30,6 +30,7 @@ export default async function MenuSection({ categoryImages, categoryImagesMobile
   const news = all.filter((p) => p.is_new);
   const hits = all.filter((p) => p.is_hit);
   const pick = (m: Record<string, string>, slug: string, name: string) => m[slug.toLowerCase()] ?? m[name.trim().toLowerCase()];
+  const icon = (id: string, name: string) => categoryIcons[id.toLowerCase()] ?? categoryIcons[name.trim().toLowerCase()];
   const sections = [
     ...(news.length ? [{ id: 'new', name: 'Новинки', image: categoryImages['new'] ?? categoryImages['новинки'], mobile: categoryImagesMobile['new'] ?? categoryImagesMobile['новинки'], list: news }] : []),
     ...(hits.length ? [{ id: 'hits', name: 'Хиты', image: categoryImages['hits'] ?? categoryImages['хиты'], mobile: categoryImagesMobile['hits'] ?? categoryImagesMobile['хиты'], list: hits }] : []),
@@ -38,7 +39,7 @@ export default async function MenuSection({ categoryImages, categoryImagesMobile
   return (
     <>
       <CategoryNav items={sections.map((s) => ({ id: s.id, name: s.name }))} />
-      <MenuModal items={sections.map((s) => ({ id: s.id, name: s.name, thumb: s.mobile || s.image || s.list.find((p) => p.image_url)?.image_url || '' }))} />
+      <MenuModal items={sections.map((s) => ({ id: s.id, name: s.name, thumb: icon(s.id, s.name) || s.mobile || s.image || s.list.find((p) => p.image_url)?.image_url || '' }))} />
       {sections.map((s) => <CategoryBlock key={s.id} slug={s.id} name={s.name} image={s.image} imageMobile={s.mobile} products={s.list} />)}
     </>
   );

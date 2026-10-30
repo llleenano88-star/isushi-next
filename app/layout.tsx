@@ -9,10 +9,18 @@ import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import ExtrasPrompt from '@/components/ExtrasPrompt';
 import SearchOverlay from '@/components/SearchOverlay';
 import { getSettings } from '@/lib/settings';
+import { SITE_URL } from '@/lib/site';
 
 const font = Montserrat({ subsets: ['latin', 'cyrillic'], weight: ['400', '500', '600', '700', '800', '900'], variable: '--font-montserrat' });
 
-export const metadata: Metadata = { title: 'iSushiClub — доставка роллов, суши и пиццы', manifest: '/manifest.json', appleWebApp: { capable: true, title: 'iSushi' } };
+const DESC = 'Заказывайте роллы, суши, пиццу и горячие блюда с доставкой и самовывозом в Самаре. Смотрите меню и акции, оформляйте заказ онлайн.';
+export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  title: 'iSushiClub — доставка роллов, суши и пиццы',
+  description: DESC,
+  openGraph: { title: 'iSushiClub — доставка роллов, суши и пиццы', description: DESC, url: SITE_URL, siteName: 'iSushiClub', locale: 'ru_RU', type: 'website' },
+  manifest: '/manifest.json', appleWebApp: { capable: true, title: 'iSushi' },
+};
 export const viewport: Viewport = { themeColor: '#d81b7a', viewportFit: 'cover' };
 
 // Тёмной темы нет: сайт всегда светлый

@@ -21,7 +21,7 @@ export default function BottomNav() {
   const item = 'flex min-h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-normal text-[#a7acb4] transition-colors min-[400px]:text-[11px]';
   return (
     <nav aria-label="Основное меню" className="fixed inset-x-3 bottom-[calc(12px+env(safe-area-inset-bottom))] z-50 flex items-center rounded-[28px] bg-[#16191d] px-2 text-white shadow-soft md:hidden">
-      <button type="button" onClick={() => (path === '/' ? setMenuOpen(true) : router.push('/#menu'))} className={`${item} ${path === '/' ? 'text-white' : ''}`}><MenuIcon />Меню</button>
+      <button type="button" onClick={() => (path === '/' || path === '/menu' ? setMenuOpen(true) : router.push('/#menu'))} className={`${item} ${path === '/' ? 'text-white' : ''}`}><MenuIcon />Меню</button>
       <button type="button" onClick={() => setSearchOpen(true)} className={item}><SearchIcon />Поиск</button>
       <Link href="/" aria-label="На главную" onClick={() => typeof window !== 'undefined' && window.scrollTo({ top: 0, behavior: 'smooth' })} className="mx-1 grid h-[68px] w-[68px] shrink-0 place-items-center rounded-full bg-[#16191d] ring-[3px] ring-[#ee3f9a]">
         <span className="grid h-[54px] w-[54px] place-items-center rounded-full bg-brand text-xl font-black">iS</span>

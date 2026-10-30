@@ -26,7 +26,7 @@ export default function Header({ phone }: { phone?: string }) {
       <div className="mx-auto hidden h-[72px] max-w-7xl items-center gap-8 px-4 md:flex">
         <Logo />
         <nav className="flex items-center gap-7 text-[15px]">
-          <button type="button" onClick={() => (path === '/' ? setMenuOpen(true) : router.push('/#menu'))} className={link}><Ico><circle cx="5" cy="5" r="1.6" /><circle cx="12" cy="5" r="1.6" /><circle cx="19" cy="5" r="1.6" /><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /><circle cx="5" cy="19" r="1.6" /><circle cx="12" cy="19" r="1.6" /><circle cx="19" cy="19" r="1.6" /></Ico>Меню</button>
+          <button type="button" onClick={() => (path === '/' || path === '/menu' ? setMenuOpen(true) : router.push('/#menu'))} className={link}><Ico><circle cx="5" cy="5" r="1.6" /><circle cx="12" cy="5" r="1.6" /><circle cx="19" cy="5" r="1.6" /><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /><circle cx="5" cy="19" r="1.6" /><circle cx="12" cy="19" r="1.6" /><circle cx="19" cy="19" r="1.6" /></Ico>Меню</button>
           {tel && <a href={`tel:${tel}`} className={link}><Ico><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" /></Ico>Контакты</a>}
           <button onClick={() => setSearchOpen(true)} className={link}><Ico><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></Ico>Поиск</button>
           <Link href="/#promos" className={link}>Акции</Link>

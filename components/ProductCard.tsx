@@ -86,7 +86,7 @@ export default function ProductCard({ p }: { p: Product }) {
               {hasOpts && !picked && <p className="text-xs text-mute">Выберите вариант, чтобы добавить в корзину</p>}
               <div className={`grid gap-2 ${p.variants.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {p.variants.map((v) => (
-                  <button key={v.label} disabled={hasOpts && !picked} onClick={() => { put(v); setFlash(v.label); setTimeout(() => setFlash(''), 900); }} className="min-h-12 rounded-full bg-brand px-3 py-1.5 text-sm font-extrabold leading-tight text-white transition ease-spring active:scale-95 disabled:opacity-40">
+                  <button key={v.label} disabled={hasOpts && !picked} onClick={() => { put(v); setFlash(v.label); setTimeout(() => { setFlash(''); setOpen(false); setSel([]); }, 450); }} className="min-h-12 rounded-full bg-brand px-3 py-1.5 text-sm font-extrabold leading-tight text-white transition ease-spring active:scale-95 disabled:opacity-40">
                     {flash === v.label ? '✓ Добавлено' : <><span className="block uppercase">{v.label}</span><span className="block">{v.price} ₽</span></>}
                   </button>
                 ))}

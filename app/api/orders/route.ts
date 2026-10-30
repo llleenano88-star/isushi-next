@@ -107,10 +107,19 @@ export async function POST(req: Request) {
     const dm = hhmm(b.desiredTime); const lead = b.receiveType === 'delivery' ? cs.deliveryLead[0] : cs.pickupLead[0];
     if (dm == null) return fail('Некорректное время', 400);
     if (dm < nowI.minutes + lead) return fail(`Выберите время не раньше чем через ${lead} мин`, 400);
+    if (b.receiveType === 'delivery' && dm - cs.deliveryTravel < nowI.minutes) return fail('Выберите время позже: нужно успеть приготовить и довезти заказ', 400);
     const wf = hhmm(cs.workFrom); const wt = hhmm(cs.workTo);
     if ((wf != null && dm < wf) || (wt != null && dm > wt)) return fail('Это время вне часов работы', 400);
     desiredMin = dm;
   }
+
+  // Время «ко времени»: при доставке блюда должны быть готовы раньше, на время дороги; самовывоз готовим точно к выбранному времени
+  const fmtHM = (m: number) => `${String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String(((m % 60) + 60) % 60).padStart(2, '0')}`;
+  const travel = b.receiveType === 'delivery' ? cs.deliveryTravel : 0;
+  const readyHM = desiredMin != null ? fmtHM(desiredMin - travel) : '';
+  const timeNote = b.desiredTime
+    ? b.receiveType === 'delivery' ? `Доставить к ${b.desiredTime}, готовность к ${readyHM}` : `Самовывоз к ${b.desiredTime}, готовность к ${readyHM}`
+    : '';
 
   // Акции: скидки и подарки считаются здесь по данным из БД, значения из браузера не берём
   const engineLines: EngineLine[] = lines.map((l) => ({ productId: l.product_id ?? '', categoryId: (prods?.find((x) => x.id === l.product_id) as any)?.category_id ?? null, label: l.rawLabel ?? '', price: l.price, qty: l.qty, isPromo: !!(prods?.find((x) => x.id === l.product_id) as any)?.is_promo }));
@@ -154,7 +163,7 @@ export async function POST(req: Request) {
     user_id: user?.id ?? null, idempotency_key: b.idempotencyKey, number, phone: b.phone, customer_name: b.name,
     receive_type: b.receiveType, address: b.address ? { text: b.address } : null, payment_method: b.paymentMethod,
     products_total: subtotal, delivery_price: totals.delivery, total: totals.total,
-    comment: [b.comment, b.desiredTime ? `${b.receiveType === 'delivery' ? 'Доставить' : 'Забрать'} к ${b.desiredTime}` : '', zone ? `Зона: ${zone.name}` : ''].filter(Boolean).join('. ') || null,
+    comment: [b.comment, timeNote, zone ? `Зона: ${zone.name}` : ''].filter(Boolean).join('. ') || null,
     promo_code: promo?.code ?? null, discount: totals.discount,
   };
   let ins = await db.from('orders').insert(row).select('id,number').single();
@@ -185,7 +194,7 @@ export async function POST(req: Request) {
       const note = [
         noIiko.length ? `Доп. (добавить вручную): ${noIiko.map((l) => `${l.name} ×${l.qty}`).join(', ')}` : '',
         lines.some((l) => l.choice) ? `Выбор: ${lines.filter((l) => l.choice).map((l) => `${l.name} — ${l.choice}`).join('; ')}` : '',
-        b.desiredTime ? `${b.receiveType === 'delivery' ? 'Доставить' : 'Забрать'} к ${b.desiredTime}` : '',
+        timeNote,
         zone ? `Зона: ${zone.name}` : '',
         eng.discounts.length ? `Акции: ${eng.discounts.map((d) => `${d.title} −${d.amount} ₽`).join('; ')}` : '',
         giftLines.length ? `Подарок: ${giftLines.map((g) => g.name).join(', ')}` : '',
@@ -197,7 +206,7 @@ export async function POST(req: Request) {
         paymentMethod: b.paymentMethod,
         ...(b.desiredTime ? { completeBefore: `${nowI.date} ${b.desiredTime}:00.000` } : {}),
         items: [
-          ...[...lines, ...giftLines, ...extraLines.filter((l) => l.iikoId)].map((l) => ({ iikoId: l.iikoId!, sizeId: l.sizeId, price: l.price, qty: l.qty, ...(l.choice ? { comment: l.choice } : {}) })),
+          ...[...lines, ...giftLines, ...extraLines.filter((l) => l.iikoId)].map((l) => ({ iikoId: l.iikoId!, sizeId: l.sizeId, price: l.price, qty: l.qty, ...((l.choice || readyHM) ? { comment: [l.choice, readyHM ? `Готовить к ${readyHM}` : ''].filter(Boolean).join('; ') } : {}) })),
           // Доставка отдельной позицией по коду из iiko (код задаётся в админке, раздел «Доставка»); бесплатная доставка не добавляется
           ...(totals.delivery > 0 && deliveryIikoId ? [{ iikoId: deliveryIikoId, sizeId: null, price: totals.delivery, qty: 1 }] : []),
         ] });

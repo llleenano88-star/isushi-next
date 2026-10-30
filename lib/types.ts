@@ -6,7 +6,7 @@ export type PublicSettings = {
   deliveryTime: string; deliveryPrice: number; freeDeliveryFrom: number; minOrder: number;
   phone: string; includedNote: string; extras: Extra[];
   tz: string; pickupLead: [number, number]; deliveryLead: [number, number]; slotStep: number; workFrom: string; workTo: string;
-  zoneText: string; zones: Zone[]; promos: Promotion[]; closeCutoff: number; city: string;
+  zoneText: string; zones: Zone[]; promos: Promotion[]; closeCutoff: number; city: string; deliveryTravel: number;
 };
 
 export type QuestionsBlock = { title: string; text: string; phone: string; links: { label: string; href: string }[] };

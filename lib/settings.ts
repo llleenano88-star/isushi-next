@@ -103,7 +103,7 @@ export async function getSettings() {
     slotStep: [5, 10, 15, 20, 30].includes(num(m.slot_step)) ? num(m.slot_step) : 10,
     workFrom: str(m.work_from), workTo: str(m.work_to),
     zoneText: str(m.zone_text) || 'Есть вопросы по поводу зоны доставки? Позвоните 202-10-20',
-    zones, promos, closeCutoff: Math.min(240, num(m.close_cutoff_min)), city: str(m.site_city) || 'Самара',
+    zones, promos, deliveryTravel: m.delivery_travel_min == null || m.delivery_travel_min === '' ? 40 : Math.max(0, Math.min(180, Math.round(Number(m.delivery_travel_min) || 0))), closeCutoff: Math.min(240, num(m.close_cutoff_min)), city: str(m.site_city) || 'Самара',
   };
   const links = [
     { label: 'Telegram', href: str(m.telegram) }, { label: 'WhatsApp', href: str(m.whatsapp) }, { label: 'ВКонтакте', href: str(m.vk) },

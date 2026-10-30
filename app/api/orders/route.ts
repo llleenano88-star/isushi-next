@@ -19,6 +19,8 @@ const Body = z.object({
   paymentMethod: z.enum(['cash', 'transfer', 'qr', 'card']), // card оставлен для старых корзин
   street: z.string().trim().max(120).optional(),
   house: z.string().trim().max(30).optional(),
+  privateHouse: z.boolean().optional(), noBell: z.boolean().optional(),
+  apt: z.string().trim().max(30).optional(), entrance: z.string().trim().max(30).optional(), floor: z.string().trim().max(30).optional(), intercom: z.string().trim().max(60).optional(),
   comment: z.string().trim().max(300).optional(),
   turnstileToken: z.string().optional(),
   promoCode: z.string().trim().max(40).optional(),
@@ -29,7 +31,8 @@ const Body = z.object({
   zoneId: z.string().uuid().optional(),
   promoId: z.string().uuid().optional(),
   desiredTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-}).refine((b) => b.receiveType === 'pickup' || (!!b.address && !!b.street && !!b.house), { message: 'Укажите улицу и номер дома', path: ['address'] });
+}).refine((b) => b.receiveType === 'pickup' || (!!b.address && !!b.street && !!b.house), { message: 'Укажите улицу и номер дома', path: ['address'] })
+  .refine((b) => b.receiveType === 'pickup' || b.privateHouse || (!!b.apt && !!b.entrance && !!b.floor && (b.noBell || !!b.intercom)), { message: 'Укажите квартиру, подъезд, этаж и домофон', path: ['address'] });
 
 type Line = { product_id: string | null; name: string; variant_label: string | null; price: number; qty: number; iikoId: string | null; sizeId?: string | null; choice?: string | null; rawLabel?: string };
 const fail = (error: string, status: number) => NextResponse.json({ error }, { status });

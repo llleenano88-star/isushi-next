@@ -29,6 +29,12 @@ export default function Banners({ banners, intervalMs = 1500 }: { banners: B[]; 
         ))}
       </div>
       {n > 1 && (
+        <>
+          <button type="button" aria-label="Предыдущий баннер" onClick={() => { touched.current = Date.now(); go((i - 1 + n) % n); }} className="absolute left-3 top-[calc(50%-20px)] z-10 hidden h-11 w-11 place-items-center rounded-full bg-white/90 text-2xl shadow-soft md:grid">‹</button>
+          <button type="button" aria-label="Следующий баннер" onClick={() => { touched.current = Date.now(); go((i + 1) % n); }} className="absolute right-3 top-[calc(50%-20px)] z-10 hidden h-11 w-11 place-items-center rounded-full bg-white/90 text-2xl shadow-soft md:grid">›</button>
+        </>
+      )}
+      {n > 1 && (
         <div className="mt-3 flex justify-center gap-2">
           {banners.map((_, k) => <button key={k} aria-label={`Показать баннер ${k + 1}`} onClick={() => go(k)} className={`h-2.5 rounded-full transition-all ${k === i ? 'w-6 bg-accent' : 'w-2.5 bg-black/20 dark:bg-white/30'}`} />)}
         </div>

@@ -28,7 +28,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
   deliveryPrice: number; freeFrom: number; promoId?: string; zoneId?: string; gifts: { promoId: string; productId: string; label: string }[]; actionDiscount: number;
 }) {
   const items = useCart((s) => s.items); const setZone = useCart((s) => s.setZone); const key = useRef(crypto.randomUUID());
-  const [f, setF] = useState({ name: '', phone: '', street: '', houseNo: '', apt: '', floor: '', intercom: '', time: '', comment: '' });
+  const [f, setF] = useState({ name: '', phone: '', street: '', houseNo: '', apt: '', entrance: '', floor: '', intercom: '', time: '', comment: '' });
   const [house, setHouse] = useState(false); const [noBell, setNoBell] = useState(false); const [when, setWhen] = useState('asap'); const [pay, setPay] = useState<'cash' | 'transfer' | 'qr'>('cash');
   const [busy, setBusy] = useState(false); const [msg, setMsg] = useState(''); const [tried, setTried] = useState(false);
   const [zst, setZst] = useState<{ kind: 'idle' | 'busy' | 'ok' | 'out' | 'nf'; text: string }>({ kind: 'idle', text: '' });
@@ -72,6 +72,12 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
     if (f.street.trim().length < 3) errs.street = 'Укажите улицу';
     if (!f.houseNo.trim()) errs.house = 'Укажите номер дома';
     if (needZone && !zoneId) errs.zone = 'Не определена зона доставки: проверьте адрес';
+    if (!house) { // в частном доме квартиру, подъезд и этаж не спрашиваем
+      if (!f.apt.trim()) errs.apt = 'Укажите квартиру или офис';
+      if (!f.entrance.trim()) errs.entrance = 'Укажите подъезд';
+      if (!f.floor.trim()) errs.floor = 'Укажите этаж';
+      if (!noBell && !f.intercom.trim()) errs.intercom = 'Укажите код домофона или отметьте «Не работает»';
+    }
   }
   if (!timeOk) errs.time = 'Выберите время';
   if (siteKey && !token) errs.captcha = 'Подтвердите, что вы не робот';
@@ -83,11 +89,11 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
     if (!canOrder || items.length === 0) return;
     if (Object.keys(errs).length) { setTried(true); setMsg(`Заполните обязательные поля: ${Object.values(errs).join('; ')}`); return; }
     setBusy(true); setMsg('');
-    const address = [`${f.street.trim()}, д. ${f.houseNo.trim()}`, house ? 'частный дом' : f.apt.trim() && `кв./офис ${f.apt.trim()}`, !house && f.floor.trim() && `этаж ${f.floor.trim()}`,
+    const address = [`${f.street.trim()}, д. ${f.houseNo.trim()}`, house ? 'частный дом' : f.apt.trim() && `кв./офис ${f.apt.trim()}`, !house && f.entrance.trim() && `подъезд ${f.entrance.trim()}`, !house && f.floor.trim() && `этаж ${f.floor.trim()}`,
       noBell ? 'домофон не работает' : f.intercom.trim() && `домофон ${f.intercom.trim()}`].filter(Boolean).join(', ');
     const comment = f.comment.trim();
     const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      name: f.name.trim(), phone: f.phone, receiveType: receive, address: receive === 'delivery' ? address : undefined, ...(receive === 'delivery' ? { street: f.street.trim(), house: f.houseNo.trim() } : {}), paymentMethod: pay, comment: comment || undefined,
+      name: f.name.trim(), phone: f.phone, receiveType: receive, address: receive === 'delivery' ? address : undefined, ...(receive === 'delivery' ? { street: f.street.trim(), house: f.houseNo.trim(), privateHouse: house, noBell, apt: f.apt.trim(), entrance: f.entrance.trim(), floor: f.floor.trim(), intercom: f.intercom.trim() } : {}), paymentMethod: pay, comment: comment || undefined,
       idempotencyKey: key.current, turnstileToken: token, promoCode: promoCode || undefined, clientTotal: totals.total,
       ...(when === 'time' && f.time ? { desiredTime: f.time } : {}), ...(receive === 'delivery' && zoneId ? { zoneId } : {}), ...(promoId ? { promoId } : {}), gifts,
       items: items.filter((i) => !i.extra).map((i) => ({ productId: i.productId, label: i.label, qty: i.qty, ...(i.choices?.length ? { choices: i.choices } : {}) })),
@@ -117,10 +123,11 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
             )}
             <Check label="Частный дом" checked={house} onChange={setHouse} />
             <span />
-            {!house && <input className={line} placeholder="Квартира / офис" value={f.apt} onChange={set('apt')} />}
-            {!house && <input className={line} placeholder="Этаж" inputMode="numeric" value={f.floor} onChange={set('floor')} />}
-            <input className={line} placeholder="Домофон" value={f.intercom} onChange={set('intercom')} disabled={noBell} />
-            <Check label="Не работает" checked={noBell} onChange={setNoBell} />
+            {!house && <div><input className={`${line}${bad('apt')}`} placeholder="Квартира / офис *" value={f.apt} onChange={set('apt')} />{hint('apt')}</div>}
+            {!house && <div><input className={`${line}${bad('entrance')}`} placeholder="Подъезд *" inputMode="numeric" value={f.entrance} onChange={set('entrance')} />{hint('entrance')}</div>}
+            {!house && <div><input className={`${line}${bad('floor')}`} placeholder="Этаж *" inputMode="numeric" value={f.floor} onChange={set('floor')} />{hint('floor')}</div>}
+            <div><input className={`${line}${bad('intercom')}`} placeholder={house || noBell ? 'Домофон' : 'Домофон *'} value={f.intercom} onChange={set('intercom')} disabled={noBell} />{hint('intercom')}</div>
+            <Check label="Домофон не работает" checked={noBell} onChange={setNoBell} />
           </>
         )}
         <select className={line} value={when} onChange={(e) => setWhen(e.target.value)} aria-label="Желаемое время получения">

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { createDelivery, confirmDelivery, printDeliveryBill } from '@/lib/iiko';
+import { createDelivery, confirmDelivery, printDeliveryBill, iikoItemCommentStored } from '@/lib/iiko';
 import { supabaseSession } from '@/lib/supabase/ssr';
 import { getSettings } from '@/lib/settings';
 import { computeTotals } from '@/lib/pricing';
@@ -196,9 +196,9 @@ export async function POST(req: Request) {
     try {
       const noIiko = extraLines.filter((l) => !l.iikoId);
       const note = [
+        timeNote ? `⏰ ${timeNote.toUpperCase()}` : '', // время первой строкой, чтобы оператор видел его сразу
         noIiko.length ? `Доп. (добавить вручную): ${noIiko.map((l) => `${l.name} ×${l.qty}`).join(', ')}` : '',
         lines.some((l) => l.choice) ? `Выбор: ${lines.filter((l) => l.choice).map((l) => `${l.name} — ${l.choice}`).join('; ')}` : '',
-        timeNote,
         zone ? `Зона: ${zone.name}` : '',
         eng.discounts.length ? `Акции: ${eng.discounts.map((d) => `${d.title} −${d.amount} ₽`).join('; ')}` : '',
         giftLines.length ? `Подарок: ${giftLines.map((g) => g.name).join(', ')}` : '',
@@ -210,7 +210,8 @@ export async function POST(req: Request) {
         paymentMethod: b.paymentMethod,
         ...(b.desiredTime ? { completeBefore: `${nowI.date} ${b.desiredTime}:00.000` } : {}),
         items: [
-          ...[...lines, ...giftLines, ...extraLines.filter((l) => l.iikoId)].map((l) => ({ iikoId: l.iikoId!, sizeId: l.sizeId, price: l.price, qty: l.qty, ...((l.choice || readyHM) ? { comment: [l.choice, readyHM ? `Готовить к ${readyHM}` : ''].filter(Boolean).join('; ') } : {}) })),
+          // Время ко времени пишем один раз, под первой позицией («К 22:00»); у остальных блюд только их выбор (острый и т.п.)
+          ...[...lines, ...giftLines, ...extraLines.filter((l) => l.iikoId)].map((l, idx) => { const c = [l.choice, idx === 0 && readyHM ? `К ${readyHM}` : ''].filter(Boolean).join('; '); return { iikoId: l.iikoId!, sizeId: l.sizeId, price: l.price, qty: l.qty, ...(c ? { comment: c } : {}) }; }),
           // Доставка отдельной позицией по коду из iiko (код задаётся в админке, раздел «Доставка»); бесплатная доставка не добавляется
           ...(totals.delivery > 0 && deliveryIikoId ? [{ iikoId: deliveryIikoId, sizeId: null, price: totals.delivery, qty: 1 }] : []),
         ] });
@@ -220,6 +221,10 @@ export async function POST(req: Request) {
         const c = await confirmDelivery(iikoId); // сразу подтверждаем, чтобы заказ шёл на кухню без оператора
         if (c !== true) await saveErr(c);
         else if (b.desiredTime) { const pr = await printDeliveryBill(iikoId); if (pr !== true) await saveErr(pr); } // заказ ко времени: чек печатаем сразу, без ожидания оператора
+        if (b.desiredTime) { // проверяем, принял ли iiko комментарий к блюду (время готовности), и показываем результат в админке
+          const stored = await iikoItemCommentStored(iikoId);
+          if (stored !== null) await db.from('orders').update({ promo_info: { discounts: eng.discounts, gifts: giftLines.map((g) => `${g.name} (${g.variant_label})`), iikoItemComment: stored } }).eq('id', order.id);
+        }
       }
     } catch (e: any) { console.error('iiko createDelivery failed', e); await saveErr(String(e?.message ?? e)); } // заказ сохранён, виден в админке
   }

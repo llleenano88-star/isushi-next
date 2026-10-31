@@ -60,6 +60,14 @@ export async function createDelivery(o: { number: string; phone: string; name: s
 // Автоподтверждение: заказ с сайта сразу уходит из статуса «Не подтверждён», оператору нажимать ничего не нужно.
 // iiko создаёт заказ не мгновенно, поэтому пробуем несколько раз с короткой паузой (всего до ~6 секунд).
 // Отключить: переменная IIKO_AUTO_CONFIRM=0. Ошибка подтверждения заказ не ломает: он останется в iiko «не подтверждённым».
+// Печать чека доставки сразу после создания (нужно для заказов «ко времени», которые iiko иначе держит до своего срока).
+// Отключить: переменная IIKO_PRINT_TIMED=0. Возвращает true или текст причины неудачи.
+export async function printDeliveryBill(orderId: string): Promise<true | string> {
+  if (process.env.IIKO_PRINT_TIMED === '0') return true;
+  try { await iiko('/api/1/deliveries/print_delivery_bill', { organizationId: ORG(), orderId }); return true; }
+  catch (e: any) { return `Чек не напечатан автоматически: ${String(e?.message ?? e).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 250)}`; }
+}
+
 export async function confirmDelivery(orderId: string): Promise<true | string> { // true = подтверждён, строка = причина неудачи
   if (process.env.IIKO_AUTO_CONFIRM === '0') return true;
   let last = '';

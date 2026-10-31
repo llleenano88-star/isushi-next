@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { createDelivery, confirmDelivery } from '@/lib/iiko';
+import { createDelivery, confirmDelivery, printDeliveryBill } from '@/lib/iiko';
 import { supabaseSession } from '@/lib/supabase/ssr';
 import { getSettings } from '@/lib/settings';
 import { computeTotals } from '@/lib/pricing';
@@ -219,6 +219,7 @@ export async function POST(req: Request) {
         await db.from('orders').update({ iiko_order_id: iikoId }).eq('id', order.id);
         const c = await confirmDelivery(iikoId); // сразу подтверждаем, чтобы заказ шёл на кухню без оператора
         if (c !== true) await saveErr(c);
+        else if (b.desiredTime) { const pr = await printDeliveryBill(iikoId); if (pr !== true) await saveErr(pr); } // заказ ко времени: чек печатаем сразу, без ожидания оператора
       }
     } catch (e: any) { console.error('iiko createDelivery failed', e); await saveErr(String(e?.message ?? e)); } // заказ сохранён, виден в админке
   }

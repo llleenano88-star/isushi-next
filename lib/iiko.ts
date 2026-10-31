@@ -39,7 +39,7 @@ export async function fetchExternalMenu() {
 export async function createDelivery(o: { number: string; phone: string; name: string; receiveType: string; address?: string; comment?: string; paymentMethod: string; note?: string; completeBefore?: string;
   items: { iikoId: string; sizeId?: string | null; price: number; qty: number; comment?: string }[] }) {
   const delivery = o.receiveType === 'delivery';
-  const comment = [o.comment, o.note, delivery && o.address && `Адрес: ${o.address}`, `Оплата: ${o.paymentMethod === 'cash' ? 'наличными при получении' : o.paymentMethod === 'transfer' ? 'переводом при получении' : o.paymentMethod === 'qr' ? 'по QR-коду при получении' : 'переводом или по QR-коду при получении'}`].filter(Boolean).join('. ');
+  const comment = [o.note, o.comment, delivery && o.address && `Адрес: ${o.address}`, `Оплата: ${o.paymentMethod === 'cash' ? 'наличными при получении' : o.paymentMethod === 'transfer' ? 'переводом при получении' : o.paymentMethod === 'qr' ? 'по QR-коду при получении' : 'переводом или по QR-коду при получении'}`].filter(Boolean).join('. ');
   const res = await iiko('/api/1/deliveries/create', {
     organizationId: ORG(), terminalGroupId: process.env.IIKO_TERMINAL_GROUP_ID,
     order: {
@@ -60,6 +60,16 @@ export async function createDelivery(o: { number: string; phone: string; name: s
 // Автоподтверждение: заказ с сайта сразу уходит из статуса «Не подтверждён», оператору нажимать ничего не нужно.
 // iiko создаёт заказ не мгновенно, поэтому пробуем несколько раз с короткой паузой (всего до ~6 секунд).
 // Отключить: переменная IIKO_AUTO_CONFIRM=0. Ошибка подтверждения заказ не ломает: он останется в iiko «не подтверждённым».
+// Проверка: сохранил ли iiko комментарии к блюдам (там время готовности). null = не удалось проверить.
+export async function iikoItemCommentStored(orderId: string): Promise<boolean | null> {
+  try {
+    const r = await iiko('/api/1/deliveries/by_id', { organizationId: ORG(), orderIds: [orderId] });
+    const items = r?.orders?.[0]?.order?.items;
+    if (!Array.isArray(items)) return null;
+    return items.some((i: any) => typeof i?.comment === 'string' && i.comment.trim().length > 0);
+  } catch { return null; }
+}
+
 // Печать чека доставки сразу после создания (нужно для заказов «ко времени», которые iiko иначе держит до своего срока).
 // Отключить: переменная IIKO_PRINT_TIMED=0. Возвращает true или текст причины неудачи.
 export async function printDeliveryBill(orderId: string): Promise<true | string> {

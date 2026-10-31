@@ -188,7 +188,11 @@ export async function POST(req: Request) {
     promo_info: { discounts: eng.discounts, gifts: giftLines.map((g) => `${g.name} (${g.variant_label})`) },
   }).eq('id', order.id);
 
-  if ([...lines, ...giftLines].every((l) => l.iikoId)) {
+  // Если заказ не попал в iiko, причину сохраняем в заказ: она видна в админке (колонка из миграции 014)
+  const saveErr = async (msg: string) => { await db.from('orders').update({ iiko_error: msg.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 500) }).eq('id', order.id); };
+  const missing = [...lines, ...giftLines].filter((l) => !l.iikoId);
+  if (missing.length) await saveErr(`У блюд нет кода iiko, заказ не отправлен: ${[...new Set(missing.map((l) => l.name))].join(', ')}`);
+  if (!missing.length) {
     try {
       const noIiko = extraLines.filter((l) => !l.iikoId);
       const note = [
@@ -210,9 +214,13 @@ export async function POST(req: Request) {
           // Доставка отдельной позицией по коду из iiko (код задаётся в админке, раздел «Доставка»); бесплатная доставка не добавляется
           ...(totals.delivery > 0 && deliveryIikoId ? [{ iikoId: deliveryIikoId, sizeId: null, price: totals.delivery, qty: 1 }] : []),
         ] });
-      if (iikoId) await db.from('orders').update({ iiko_order_id: iikoId }).eq('id', order.id);
-      if (iikoId) await confirmDelivery(iikoId); // сразу подтверждаем, чтобы заказ шёл на кухню без оператора
-    } catch (e) { console.error('iiko createDelivery failed', e); } // заказ сохранён, виден в админке
+      if (!iikoId) await saveErr('iiko не вернул номер заказа');
+      else {
+        await db.from('orders').update({ iiko_order_id: iikoId }).eq('id', order.id);
+        const c = await confirmDelivery(iikoId); // сразу подтверждаем, чтобы заказ шёл на кухню без оператора
+        if (c !== true) await saveErr(c);
+      }
+    } catch (e: any) { console.error('iiko createDelivery failed', e); await saveErr(String(e?.message ?? e)); } // заказ сохранён, виден в админке
   }
   return NextResponse.json({ id: order.id, number: order.number });
 }

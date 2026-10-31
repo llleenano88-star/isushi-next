@@ -51,20 +51,24 @@ export async function createDelivery(o: { number: string; phone: string; name: s
       ...(delivery && { deliveryPoint: { address: { street: { name: o.address ?? '', city: process.env.IIKO_CITY ?? '' }, house: '-' } } }),
     },
   });
-  return res?.orderInfo?.id as string | undefined;
+  const info = res?.orderInfo;
+  // iiko может ответить 200, но сообщить, что заказ создать не удалось: тогда считаем это ошибкой
+  if (info?.creationStatus === 'Error') throw new Error(`iiko не создал заказ: ${info?.errorInfo?.message ?? info?.errorInfo?.description ?? info?.errorInfo?.code ?? 'причина не указана'}`);
+  return info?.id as string | undefined;
 }
 
 // Автоподтверждение: заказ с сайта сразу уходит из статуса «Не подтверждён», оператору нажимать ничего не нужно.
 // iiko создаёт заказ не мгновенно, поэтому пробуем несколько раз с короткой паузой (всего до ~6 секунд).
 // Отключить: переменная IIKO_AUTO_CONFIRM=0. Ошибка подтверждения заказ не ломает: он останется в iiko «не подтверждённым».
-export async function confirmDelivery(orderId: string) {
-  if (process.env.IIKO_AUTO_CONFIRM === '0') return false;
+export async function confirmDelivery(orderId: string): Promise<true | string> { // true = подтверждён, строка = причина неудачи
+  if (process.env.IIKO_AUTO_CONFIRM === '0') return true;
+  let last = '';
   for (let i = 0; i < 4; i++) {
     await new Promise((r) => setTimeout(r, i === 0 ? 1200 : 1500));
     try { await iiko('/api/1/deliveries/confirm', { organizationId: ORG(), orderId }); return true; }
-    catch (e) { if (i === 3) console.error('iiko confirm failed', e); }
+    catch (e: any) { last = String(e?.message ?? e); if (i === 3) console.error('iiko confirm failed', e); }
   }
-  return false;
+  return `Заказ создан в iiko, но не подтверждён автоматически: ${last.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 250)}`;
 }
 
 export const registerWebhook = (uri: string) => iiko('/api/1/webhooks/update_settings', {

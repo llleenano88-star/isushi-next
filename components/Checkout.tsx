@@ -130,16 +130,23 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
             <Check label="Домофон не работает" checked={noBell} onChange={setNoBell} />
           </>
         )}
-        <select className={line} value={when} onChange={(e) => setWhen(e.target.value)} aria-label="Желаемое время получения">
-          <option value="asap">Как можно скорее (через {lead[0]}–{lead[1]} мин)</option><option value="time">Ко времени</option>
-        </select>
-        {when === 'time' ? (
-          slots.length ? (
-            <select className={line} value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} aria-label="Время">
-              <option value="">Выберите время</option>{slots.map((t) => <option key={t} value={t}>{receive === 'delivery' ? 'Доставить к' : 'Забрать к'} {t}</option>)}
-            </select>
-          ) : <p className="py-3 text-sm text-mute">На сегодня свободного времени уже нет, выберите «Как можно скорее»</p>
-        ) : <span />}
+        <div className="md:col-span-2">
+          <p className="mb-2 mt-1 text-sm font-bold">{receive === 'delivery' ? 'Когда доставить' : 'Когда забрать'}</p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button type="button" aria-pressed={when === 'asap'} onClick={() => setWhen('asap')} className={`min-h-12 flex-1 rounded-full px-4 text-sm font-extrabold ${when === 'asap' ? 'bg-brand text-white' : 'bg-blush text-ink'}`}>Как можно скорее (через {lead[0]}–{lead[1]} мин)</button>
+            <button type="button" aria-pressed={when === 'time'} onClick={() => setWhen('time')} className={`min-h-12 flex-1 rounded-full px-4 text-sm font-extrabold ${when === 'time' ? 'bg-brand text-white' : 'bg-blush text-ink'}`}>Ко времени</button>
+          </div>
+          {when === 'time' && (
+            slots.length ? (
+              <div className="mt-3">
+                <select className={`${line}${bad('time')}`} value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} aria-label="Время">
+                  <option value="">Выберите время</option>{slots.map((t) => <option key={t} value={t}>{receive === 'delivery' ? 'Доставить к' : 'Забрать к'} {t}</option>)}
+                </select>
+                {hint('time')}
+              </div>
+            ) : <p className="mt-3 text-sm text-mute">На сегодня свободного времени уже нет, выберите «Как можно скорее»</p>
+          )}
+        </div>
          <input className={`${line} md:col-span-2`} placeholder="Комментарий к заказу" value={f.comment} onChange={set('comment')} />
       </div>
       <p className="mb-2 mt-5 text-sm font-bold">Способ оплаты</p>

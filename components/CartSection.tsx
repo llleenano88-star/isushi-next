@@ -69,10 +69,10 @@ export default function CartSection({ settings }: { settings: PublicSettings }) 
     <section id="cart" className="scroll-mt-24 py-10">
       <div className="mx-auto max-w-md rounded-[28px] bg-card p-8 text-center shadow-soft">
         <div className="mx-auto mb-4 grid h-20 w-20 place-items-center rounded-full bg-leaf text-4xl text-white">✓</div>
-        <p className="text-2xl font-extrabold">Заказ № {done} принят</p>
-        <p className="mt-2 text-sm text-mute">Статус заказа смотрите в разделе «Кабинет». Для этого войдите по email.</p>
-        <Link href="/account" onClick={finish} className="mt-5 flex h-14 items-center justify-center rounded-xl bg-brand font-bold text-white">Следить за статусом</Link>
-        <button onClick={finish} className="mt-2 h-12 w-full font-bold text-mute">Вернуться в меню</button>
+        <p className="text-2xl font-extrabold">Заказ № {done} оформлен</p>
+        <p className="mt-2 text-sm text-mute">Спасибо за заказ! Историю заказов можно посмотреть в разделе «Кабинет» (вход по email).</p>
+        <button onClick={finish} className="mt-5 h-14 w-full rounded-full bg-brand font-bold text-white">Вернуться в меню</button>
+        <Link href="/account" onClick={finish} className="mt-2 flex h-12 w-full items-center justify-center font-bold text-mute">Мои заказы</Link>
       </div>
       {phoneBlock}
     </section>

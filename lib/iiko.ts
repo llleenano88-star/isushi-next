@@ -6,9 +6,34 @@ let cache: { token: string; exp: number } | null = null;
 
 async function token() {
   if (cache && cache.exp > Date.now()) return cache.token;
-  const r = await fetch(`${BASE}/api/1/access_token`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiLogin: process.env.IIKO_API_LOGIN }), cache: 'no-store' });
-  if (!r.ok) throw new Error(`iiko auth ${r.status}`);
-  cache = { token: (await r.json()).token, exp: Date.now() + 50 * 60_000 };
+
+  // apiLogin — это API-ключ из iiko, а не логин сотрудника.
+  const apiLogin = process.env.IIKO_API_LOGIN?.trim();
+  if (!apiLogin) throw new Error('iiko auth: не задан IIKO_API_LOGIN');
+
+  const r = await fetch(`${BASE}/api/1/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ apiLogin }),
+    cache: 'no-store',
+  });
+
+  if (!r.ok) {
+    // Подробности ответа нужны для диагностики 403. Сам ключ в ошибку не включается.
+    const details = (await r.text())
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\\s+/g, ' ')
+      .trim()
+      .slice(0, 700);
+    throw new Error(`iiko auth ${r.status}${details ? `: ${details}` : ''} (API: ${BASE})`);
+  }
+
+  const data = await r.json();
+  if (typeof data?.token !== 'string' || !data.token) {
+    throw new Error('iiko auth: сервер ответил успешно, но не вернул token');
+  }
+
+  cache = { token: data.token, exp: Date.now() + 50 * 60_000 };
   return cache.token;
 }
 export async function iiko<T = any>(path: string, body: unknown): Promise<T> {

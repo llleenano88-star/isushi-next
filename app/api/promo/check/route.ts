@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   if (!ok) return NextResponse.json({ error: 'Слишком много попыток. Попробуйте позже' }, { status: 429 });
   const r = await findPromo(db, p.data.code, p.data.subtotal);
   if (!r.promo) return NextResponse.json({ error: r.error }, { status: 400 });
-  const { code, type, value, minOrder } = r.promo;
-  const message = type === 'percent' ? `Промокод применён: скидка ${value}%` : type === 'fixed' ? `Промокод применён: скидка ${value} ₽` : 'Промокод применён: бесплатная доставка';
-  return NextResponse.json({ promo: { code, type, value, minOrder }, message });
+  const { id, code, type, value, minOrder, gifts } = r.promo;
+  const message = type === 'percent' ? `Промокод применён: скидка ${value}%` : type === 'fixed' ? `Промокод применён: скидка ${value} ₽` : type === 'gift' ? 'Промокод применён: выберите подарок' : 'Промокод применён: бесплатная доставка';
+  return NextResponse.json({ promo: { id, code, type, value, minOrder, ...(type === 'gift' ? { gifts } : {}) }, message });
 }

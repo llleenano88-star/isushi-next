@@ -126,7 +126,16 @@ export async function POST(req: Request) {
   if (b.promoCode && engineLines.some((l) => l.isPromo)) return fail('Промокод нельзя использовать вместе с акционной позицией', 400);
   // Акции не суммируются: с промокодом акции отключены, из нескольких подходящих действует одна выбранная
   const eng = applyPromotions({ lines: engineLines, promos: cs.promos, now: nowI, receive: b.receiveType, chosenId: b.promoId ?? null, disabled: !!b.promoCode });
-  const gc = checkGifts(eng.slots, b.gifts);
+  let promo: FoundPromo | null = null;
+  if (b.promoCode) {
+    const r = await findPromo(db, b.promoCode, subtotal);
+    if (!r.promo) return fail(r.error ?? 'Промокод недоступен', 400);
+    promo = r.promo;
+  }
+  // Подарок по промокоду проверяется так же, как подарок по акции
+  const giftSlots = promo?.type === 'gift' ? [{ promoId: promo.id, title: `Промокод ${promo.code}`, count: 1, options: promo.gifts }] : eng.slots;
+  const gc = checkGifts(giftSlots, b.gifts);
+  if (gc.ok && promo?.type === 'gift' && !gc.gifts.length) return fail('Выберите подарок по промокоду', 400);
   if (!gc.ok) return fail('Подарки по акции изменились. Обновите корзину', 409);
   const giftLines: Line[] = [];
   if (gc.gifts.length) {
@@ -140,12 +149,6 @@ export async function POST(req: Request) {
     }
   }
 
-  let promo: FoundPromo | null = null;
-  if (b.promoCode) {
-    const r = await findPromo(db, b.promoCode, subtotal);
-    if (!r.promo) return fail(r.error ?? 'Промокод недоступен', 400);
-    promo = r.promo;
-  }
   const totals = computeTotals({ subtotal, receive: b.receiveType, deliveryPrice, freeFrom, promo, extraDiscount: eng.discount });
   if (b.clientTotal != null && Math.abs(b.clientTotal - totals.total) > 0.01)
     return NextResponse.json({ error: 'Стоимость заказа изменилась. Обновите страницу и проверьте сумму', total: totals.total }, { status: 409 });

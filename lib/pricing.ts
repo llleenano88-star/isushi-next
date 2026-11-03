@@ -1,5 +1,5 @@
 // Единая формула стоимости: её используют и корзина в браузере, и сервер при приёме заказа
-export type PromoRule = { type: 'percent' | 'fixed' | 'free_delivery'; value: number; minOrder: number };
+export type PromoRule = { type: 'percent' | 'fixed' | 'free_delivery' | 'gift'; value: number; minOrder: number };
 export type Totals = { delivery: number; discount: number; total: number; deliveryFree: boolean };
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -10,7 +10,8 @@ export function computeTotals(o: { subtotal: number; receive: 'delivery' | 'pick
   if (o.promo && o.subtotal >= o.promo.minOrder) {
     if (o.promo.type === 'percent') discount = Math.min(o.subtotal, Math.floor((o.subtotal * o.promo.value) / 100));
     else if (o.promo.type === 'fixed') discount = Math.min(o.subtotal, o.promo.value);
-    else delivery = 0;
+    else if (o.promo.type === 'free_delivery') delivery = 0;
+    // type 'gift': скидки нет, подарок добавляется отдельной строкой с ценой 0
   }
   discount = Math.min(o.subtotal, discount + Math.max(0, o.extraDiscount ?? 0)); // скидки акций складываются со скидкой промокода
   return { delivery: r2(delivery), discount: r2(discount), total: r2(o.subtotal - discount + delivery), deliveryFree: paid && delivery === 0 };

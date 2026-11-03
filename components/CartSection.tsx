@@ -10,7 +10,7 @@ import { applyPromotions, nowInTz, ONE_PROMO_MSG, type EngineLine, type GiftOpti
 import { openState } from '@/lib/hours';
 import type { PublicSettings } from '@/lib/types';
 
-type Applied = PromoRule & { code: string };
+type Applied = PromoRule & { code: string; id?: string; gifts?: GiftOption[] };
 
 export default function CartSection({ settings }: { settings: PublicSettings }) {
   const items = useCart((s) => s.items); const setQty = useCart((s) => s.setQty); const remove = useCart((s) => s.remove);
@@ -31,7 +31,9 @@ export default function CartSection({ settings }: { settings: PublicSettings }) 
   const empty = { discount: 0, discounts: [], slots: [], hints: [], offers: [], selected: null, blocked: false };
   const all = mounted ? applyPromotions({ lines, promos: settings.promos, now: nowInTz(settings.tz), receive, chosenId: promoChoice }) : empty;
   // Акции не суммируются: если применён промокод, акции не действуют (и наоборот)
-  const eng = activePromo ? { ...all, discount: 0, discounts: [], slots: [], selected: null } : all;
+  // Промокод может дарить блюдо: подарок выбирается как у акции
+  const codeSlots = activePromo?.type === 'gift' && activePromo.id && activePromo.gifts?.length ? [{ promoId: activePromo.id, title: `Промокод ${activePromo.code}`, count: 1, options: activePromo.gifts }] : [];
+  const eng = activePromo ? { ...all, discount: 0, discounts: [], slots: codeSlots, selected: null } : all;
   const open = mounted ? openState(nowInTz(settings.tz), settings.workFrom, settings.workTo, settings.closeCutoff) : { open: true, message: '' };
   const slotsKey = JSON.stringify(eng.slots.map((s) => [s.promoId, s.count, s.options.length]));
   useEffect(() => { // если в акции один вариант подарка, выбираем его сразу
@@ -45,7 +47,8 @@ export default function CartSection({ settings }: { settings: PublicSettings }) 
   const deliveryPrice = zone?.price ?? settings.deliveryPrice; const freeFrom = zone?.freeFrom ?? settings.freeDeliveryFrom; const minOrder = zone?.minOrder ?? settings.minOrder;
   const totals = computeTotals({ subtotal, receive, deliveryPrice, freeFrom, promo: activePromo, extraDiscount: eng.discount });
   const short = receive === 'delivery' ? Math.max(0, minOrder - subtotal) : 0; // минимальная сумма только для доставки, самовывоз от любой суммы
-  const minOk = short === 0; const canOrder = minOk && open.open; // зону определяет оформление заказа по адресу
+  const giftMissing = codeSlots.length > 0 && chosenGifts.length === 0; // подарок по промокоду нужно выбрать
+  const minOk = short === 0; const canOrder = minOk && open.open && !giftMissing; // зону определяет оформление заказа по адресу
   const tel = settings.phone.replace(/[^\d+]/g, '');
   const pickOffer = (id: string) => { if (activePromo) { setPromo(null); setPromoMsg(''); setPromoInput(''); setNotice(ONE_PROMO_MSG); } setPromoChoice(id); };
   const orderDone = (number: string) => { useCart.setState({ items: [], gifts: {}, promoChoice: null }); setPromo(null); setPromoInput(''); setPromoMsg(''); setForm(false); setDone(number); }; // корзина очищается сразу после оформления
@@ -116,7 +119,7 @@ export default function CartSection({ settings }: { settings: PublicSettings }) 
             ))}
           </ul>
 
-          {(all.offers.length > 0 || all.hints.length > 0 || all.blocked) && (
+          {(all.offers.length > 0 || all.hints.length > 0 || all.blocked || eng.slots.length > 0) && (
             <div className="mt-4 space-y-3 rounded-[24px] bg-card p-4 shadow-soft">
               {all.blocked && <p className="text-sm font-bold text-accent">В корзине акционная позиция: другие акции и промокод не действуют.</p>}
               {all.offers.length > 0 && (
@@ -164,6 +167,7 @@ export default function CartSection({ settings }: { settings: PublicSettings }) 
           {!form && <Totals subtotal={subtotal} totals={totals} receive={receive} deliveryPrice={deliveryPrice} freeFrom={freeFrom} promoCode={activePromo?.code} actionDiscount={eng.discount} />}
           {settings.deliveryTime && receive === 'delivery' && !form && <p className="mt-3 text-center text-sm text-mute">{settings.deliveryTime}</p>}
           {!minOk && <p className="mt-3 text-center text-sm font-semibold text-red-500">Минимальная сумма заказа на доставку {minOrder} ₽. Добавьте ещё на {short} ₽ или выберите самовывоз</p>}
+          {giftMissing && <p className="mt-3 text-center text-sm font-semibold text-red-500">Выберите подарок по промокоду</p>}
           {!open.open && <p className="mt-3 rounded-2xl bg-[#ffe9ec] px-4 py-3 text-center text-sm font-bold text-[#b3261e]">{open.message}</p>}
           {!form && <button onClick={() => setForm(true)} disabled={!canOrder} className="mx-auto mt-4 flex h-14 w-full max-w-sm items-center justify-center rounded-full bg-brand px-10 text-lg font-bold text-white disabled:opacity-50">Оформить заказ</button>}
           {form && <Checkout onDone={orderDone} settings={settings} receive={receive} subtotal={subtotal} totals={totals} promoCode={activePromo?.code} canOrder={canOrder} promoId={eng.selected?.promoId} deliveryPrice={deliveryPrice} freeFrom={freeFrom} zoneId={zone?.id} gifts={chosenGifts.map((g) => ({ promoId: g.promoId, productId: g.productId, label: g.label }))} actionDiscount={eng.discount} />}

@@ -7,22 +7,26 @@ let cache: { token: string; exp: number } | null = null;
 async function token() {
   if (cache && cache.exp > Date.now()) return cache.token;
 
-  // apiLogin — это API-ключ из iiko, а не логин сотрудника.
-  const apiLogin = process.env.IIKO_API_LOGIN?.trim();
-  if (!apiLogin) throw new Error('iiko auth: не задан IIKO_API_LOGIN');
+  // apiLogin — это API-ключ из iiko, appId и clientSecret — из личного кабинета разработчика iiko.
+  const apiKey = process.env.IIKO_API_LOGIN?.trim();
+  const appId = process.env.IIKO_APP_ID?.trim();
+  const clientSecret = process.env.IIKO_CLIENT_SECRET?.trim();
 
-  const r = await fetch(`${BASE}/api/1/access_token`, {
+  if (!apiKey) throw new Error('iiko auth: не задан IIKO_API_LOGIN');
+  if (!appId || !clientSecret) throw new Error('iiko auth: не заданы IIKO_APP_ID или IIKO_CLIENT_SECRET');
+
+  // Новая схема авторизации v2
+  const r = await fetch(`${BASE}/api/v2/access_token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ apiLogin }),
+    body: JSON.stringify({ apiKey, appId, clientSecret }),
     cache: 'no-store',
   });
 
   if (!r.ok) {
-    // Подробности ответа нужны для диагностики 403. Сам ключ в ошибку не включается.
     const details = (await r.text())
       .replace(/<[^>]*>/g, ' ')
-      .replace(/\\s+/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 700);
     throw new Error(`iiko auth ${r.status}${details ? `: ${details}` : ''} (API: ${BASE})`);

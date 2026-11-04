@@ -17,6 +17,7 @@ const Body = z.object({
   receiveType: z.enum(['delivery', 'pickup']),
   address: z.string().trim().max(200).optional(),
   paymentMethod: z.enum(['cash', 'transfer', 'qr', 'card']), // card оставлен для старых корзин
+  email: z.string().trim().toLowerCase().email('Укажите почту').max(120), // почта обязательна: по ней заказы видны в кабинете
   street: z.string().trim().max(120).optional(),
   house: z.string().trim().max(30).optional(),
   privateHouse: z.boolean().optional(), noBell: z.boolean().optional(),
@@ -128,7 +129,7 @@ export async function POST(req: Request) {
   const eng = applyPromotions({ lines: engineLines, promos: cs.promos, now: nowI, receive: b.receiveType, chosenId: b.promoId ?? null, disabled: !!b.promoCode });
   let promo: FoundPromo | null = null;
   if (b.promoCode) {
-    const r = await findPromo(db, b.promoCode, subtotal);
+    const r = await findPromo(db, b.promoCode, subtotal, b.email);
     if (!r.promo) return fail(r.error ?? 'Промокод недоступен', 400);
     promo = r.promo;
   }
@@ -164,12 +165,16 @@ export async function POST(req: Request) {
   const number = `S${Date.now().toString(36).toUpperCase().slice(-5)}${Math.floor(Math.random() * 90 + 10)}`;
   const row: Record<string, unknown> = {
     user_id: user?.id ?? null, idempotency_key: b.idempotencyKey, number, phone: b.phone, customer_name: b.name,
-    receive_type: b.receiveType, address: b.address ? { text: b.address } : null, payment_method: b.paymentMethod,
+    customer_email: b.email, receive_type: b.receiveType, address: b.address ? { text: b.address } : null, payment_method: b.paymentMethod,
     products_total: subtotal, delivery_price: totals.delivery, total: totals.total,
     comment: [b.comment, timeNote, zone ? `Зона: ${zone.name}` : ''].filter(Boolean).join('. ') || null,
     promo_code: promo?.code ?? null, discount: totals.discount,
   };
   let ins = await db.from('orders').insert(row).select('id,number').single();
+  if (ins.error?.code === '42703' && /customer_email/.test(ins.error.message ?? '')) { // колонка почты ещё не создана (миграция 016): сохраняем без неё
+    delete row.customer_email;
+    ins = await db.from('orders').insert(row).select('id,number').single();
+  }
   if (ins.error?.code === '42703') { // колонки промокода ещё не созданы (не выполнена миграция 007): сохраняем без них
     delete row.promo_code; delete row.discount;
     ins = await db.from('orders').insert(row).select('id,number').single();

@@ -28,7 +28,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
   deliveryPrice: number; freeFrom: number; promoId?: string; zoneId?: string; gifts: { promoId: string; productId: string; label: string }[]; actionDiscount: number;
 }) {
   const items = useCart((s) => s.items); const setZone = useCart((s) => s.setZone); const key = useRef(crypto.randomUUID());
-  const [f, setF] = useState({ name: '', phone: '', street: '', houseNo: '', apt: '', entrance: '', floor: '', intercom: '', time: '', comment: '' });
+  const [f, setF] = useState({ name: '', phone: '', email: '', street: '', houseNo: '', apt: '', entrance: '', floor: '', intercom: '', time: '', comment: '' });
   const [house, setHouse] = useState(false); const [noBell, setNoBell] = useState(false); const [when, setWhen] = useState('asap'); const [pay, setPay] = useState<'cash' | 'transfer' | 'qr'>('cash');
   const [busy, setBusy] = useState(false); const [msg, setMsg] = useState(''); const [tried, setTried] = useState(false);
   const [zst, setZst] = useState<{ kind: 'idle' | 'busy' | 'ok' | 'out' | 'nf'; text: string }>({ kind: 'idle', text: '' });
@@ -68,6 +68,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
   const errs: Record<string, string> = {};
   if (f.name.trim().length < 2) errs.name = 'Укажите имя';
   if (f.phone.replace(/\D/g, '').length < 10) errs.phone = 'Укажите телефон полностью';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) errs.email = 'Укажите почту, на неё придёт заказ в кабинет';
   if (receive === 'delivery') {
     if (f.street.trim().length < 3) errs.street = 'Укажите улицу';
     if (!f.houseNo.trim()) errs.house = 'Укажите номер дома';
@@ -93,7 +94,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
       noBell ? 'домофон не работает' : f.intercom.trim() && `домофон ${f.intercom.trim()}`].filter(Boolean).join(', ');
     const comment = f.comment.trim();
     const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      name: f.name.trim(), phone: f.phone, receiveType: receive, address: receive === 'delivery' ? address : undefined, ...(receive === 'delivery' ? { street: f.street.trim(), house: f.houseNo.trim(), privateHouse: house, noBell, apt: f.apt.trim(), entrance: f.entrance.trim(), floor: f.floor.trim(), intercom: f.intercom.trim() } : {}), paymentMethod: pay, comment: comment || undefined,
+      name: f.name.trim(), phone: f.phone, email: f.email.trim().toLowerCase(), receiveType: receive, address: receive === 'delivery' ? address : undefined, ...(receive === 'delivery' ? { street: f.street.trim(), house: f.houseNo.trim(), privateHouse: house, noBell, apt: f.apt.trim(), entrance: f.entrance.trim(), floor: f.floor.trim(), intercom: f.intercom.trim() } : {}), paymentMethod: pay, comment: comment || undefined,
       idempotencyKey: key.current, turnstileToken: token, promoCode: promoCode || undefined, clientTotal: totals.total,
       ...(when === 'time' && f.time ? { desiredTime: f.time } : {}), ...(receive === 'delivery' && zoneId ? { zoneId } : {}), ...(promoId ? { promoId } : {}), gifts,
       items: items.filter((i) => !i.extra).map((i) => ({ productId: i.productId, label: i.label, qty: i.qty, ...(i.choices?.length ? { choices: i.choices } : {}) })),
@@ -111,6 +112,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
       <div className="grid gap-x-8 gap-y-1 md:grid-cols-2">
         <div><input className={`${line}${bad('name')}`} placeholder="Имя *" autoComplete="name" value={f.name} onChange={set('name')} />{hint('name')}</div>
         <div><input className={`${line}${bad('phone')}`} placeholder="Номер телефона *" type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={set('phone')} />{hint('phone')}</div>
+        <div className="md:col-span-2"><input className={`${line}${bad('email')}`} placeholder="Электронная почта *" type="email" inputMode="email" autoComplete="email" value={f.email} onChange={set('email')} />{hint('email')}<p className="pb-1 text-xs text-mute">Заказ появится в кабинете на этой почте. Войдите на сайт по ней, чтобы видеть свои заказы.</p></div>
         {receive === 'delivery' && (
           <>
             <div><input className={`${line}${bad('street')}`} placeholder="Улица *" autoComplete="address-line1" value={f.street} onChange={set('street')} />{hint('street')}</div>

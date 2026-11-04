@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { findPromo } from '@/lib/promo';
+import { supabaseSession } from '@/lib/supabase/ssr';
 
 const Body = z.object({ code: z.string().max(40), subtotal: z.number().min(0).max(10_000_000).optional() });
 
@@ -12,7 +13,9 @@ export async function POST(req: Request) {
   const ip = (req.headers.get('x-forwarded-for') ?? 'unknown').split(',')[0].trim();
   const { data: ok } = await db.rpc('hit_rate_limit', { p_key: `promo:${ip}`, p_max: 30, p_window_seconds: 3600 }); // защита от подбора кодов
   if (!ok) return NextResponse.json({ error: 'Слишком много попыток. Попробуйте позже' }, { status: 429 });
-  const r = await findPromo(db, p.data.code, p.data.subtotal);
+  let email: string | undefined; // если клиент вошёл в кабинет, проверяем «один раз на одну почту» сразу
+  try { email = (await (await supabaseSession()).auth.getUser()).data.user?.email ?? undefined; } catch { /* без входа проверим при оформлении */ }
+  const r = await findPromo(db, p.data.code, p.data.subtotal, email);
   if (!r.promo) return NextResponse.json({ error: r.error }, { status: 400 });
   const { id, code, type, value, minOrder, gifts } = r.promo;
   const message = type === 'percent' ? `Промокод применён: скидка ${value}%` : type === 'fixed' ? `Промокод применён: скидка ${value} ₽` : type === 'gift' ? 'Промокод применён: выберите подарок' : 'Промокод применён: бесплатная доставка';

@@ -17,7 +17,6 @@ const Body = z.object({
   receiveType: z.enum(['delivery', 'pickup']),
   address: z.string().trim().max(200).optional(),
   paymentMethod: z.enum(['cash', 'transfer', 'qr', 'card']), // card оставлен для старых корзин
-  email: z.string().trim().toLowerCase().email('Укажите почту').max(120), // почта обязательна: по ней заказы видны в кабинете
   street: z.string().trim().max(120).optional(),
   house: z.string().trim().max(30).optional(),
   privateHouse: z.boolean().optional(), noBell: z.boolean().optional(),
@@ -41,7 +40,17 @@ const fail = (error: string, status: number) => NextResponse.json({ error }, { s
 export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return fail('Проверьте данные заказа', 400);
-  const b = parsed.data; const db = supabaseAdmin();
+  const b = parsed.data;
+  const session = await supabaseSession();
+  const { data: { user }, error: authError } = await session.auth.getUser();
+  if (authError || !user) return fail('Для оформления заказа войдите в аккаунт', 401);
+  if (!user.email_confirmed_at) return fail('Подтвердите электронную почту перед оформлением заказа', 403);
+  const db = supabaseAdmin();
+  const { data: profile } = await db.from('profiles').select('name,phone').eq('id', user.id).maybeSingle();
+  // Профиль — источник данных клиента; телефон и имя не берём из произвольного запроса браузера.
+  if (!profile?.name || !profile?.phone) return fail('Заполните имя и телефон в аккаунте', 400);
+  b.name = profile.name;
+  b.phone = profile.phone;
 
   const dup = await db.from('orders').select('id,number').eq('idempotency_key', b.idempotencyKey).maybeSingle();
   if (dup.data) return NextResponse.json({ id: dup.data.id, number: dup.data.number });
@@ -129,7 +138,7 @@ export async function POST(req: Request) {
   const eng = applyPromotions({ lines: engineLines, promos: cs.promos, now: nowI, receive: b.receiveType, chosenId: b.promoId ?? null, disabled: !!b.promoCode });
   let promo: FoundPromo | null = null;
   if (b.promoCode) {
-    const r = await findPromo(db, b.promoCode, subtotal, b.email);
+    const r = await findPromo(db, b.promoCode, subtotal);
     if (!r.promo) return fail(r.error ?? 'Промокод недоступен', 400);
     promo = r.promo;
   }
@@ -161,27 +170,20 @@ export async function POST(req: Request) {
   let released = false; // вернуть использование промокода можно только один раз
   const release = async () => { if (promo && !released) { released = true; await db.rpc('release_promo', { p_code: promo.code }); } };
 
-  const user = (await (await supabaseSession()).auth.getUser()).data.user;
   const number = `S${Date.now().toString(36).toUpperCase().slice(-5)}${Math.floor(Math.random() * 90 + 10)}`;
   const row: Record<string, unknown> = {
-    user_id: user?.id ?? null, idempotency_key: b.idempotencyKey, number, phone: b.phone, customer_name: b.name,
-    customer_email: b.email, receive_type: b.receiveType, address: b.address ? { text: b.address } : null, payment_method: b.paymentMethod,
+    user_id: user.id, idempotency_key: b.idempotencyKey, number, phone: b.phone, customer_name: b.name,
+    receive_type: b.receiveType, address: b.address ? { text: b.address } : null, payment_method: b.paymentMethod,
     products_total: subtotal, delivery_price: totals.delivery, total: totals.total,
     comment: [b.comment, timeNote, zone ? `Зона: ${zone.name}` : ''].filter(Boolean).join('. ') || null,
     promo_code: promo?.code ?? null, discount: totals.discount,
   };
   let ins = await db.from('orders').insert(row).select('id,number').single();
-  if (ins.error?.code === '42703' && /customer_email/.test(ins.error.message ?? '')) { // колонка почты ещё не создана (миграция 016): сохраняем без неё
-    delete row.customer_email;
-    ins = await db.from('orders').insert(row).select('id,number').single();
-  }
   if (ins.error?.code === '42703') { // колонки промокода ещё не созданы (не выполнена миграция 007): сохраняем без них
     delete row.promo_code; delete row.discount;
     ins = await db.from('orders').insert(row).select('id,number').single();
   }
   const { data: order, error } = ins;
-  // Запоминаем имя и телефон в аккаунте, чтобы при следующем заказе не вводить их заново
-  if (user && order) { try { await db.from('profiles').update({ name: b.name, phone: b.phone }).eq('id', user.id); } catch { /* телефон уже занят другим аккаунтом: не страшно */ } }
   if (error?.code === '23505') { // гонка двойного тапа
     await release();
     const again = await db.from('orders').select('id,number').eq('idempotency_key', b.idempotencyKey).single();
@@ -218,7 +220,6 @@ export async function POST(req: Request) {
       ].filter(Boolean).join('. ');
       const iikoId = await createDelivery({ number: order.number, phone: b.phone, name: b.name, receiveType: b.receiveType, address: b.address, comment: b.comment, note,
         paymentMethod: b.paymentMethod,
-        street: b.street, house: b.house, flat: b.apt, entrance: b.entrance, floor: b.floor, doorphone: b.intercom,
         ...(b.desiredTime ? { completeBefore: `${nowI.date} ${b.desiredTime}:00.000` } : {}),
         items: [
           // Время ко времени пишем один раз, под первой позицией («К 22:00»); у остальных блюд только их выбор (острый и т.п.)

@@ -23,16 +23,31 @@ function buildSlots(nowMin: number, lead: number, step: number, workFrom: string
   return out;
 }
 
-export default function Checkout({ onDone, settings, receive, subtotal, totals, promoCode, canOrder, deliveryPrice, freeFrom, zoneId, gifts, actionDiscount, promoId, account }: {
+export default function Checkout({ onDone, settings, receive, subtotal, totals, promoCode, canOrder, deliveryPrice, freeFrom, zoneId, gifts, actionDiscount, promoId }: {
   onDone: (number: string) => void; settings: PublicSettings; receive: 'delivery' | 'pickup'; subtotal: number; totals: TotalsT; promoCode?: string; canOrder: boolean;
-  deliveryPrice: number; freeFrom: number; account?: { email?: string; name?: string; phone?: string } | null; promoId?: string; zoneId?: string; gifts: { promoId: string; productId: string; label: string }[]; actionDiscount: number;
+  deliveryPrice: number; freeFrom: number; promoId?: string; zoneId?: string; gifts: { promoId: string; productId: string; label: string }[]; actionDiscount: number;
 }) {
   const items = useCart((s) => s.items); const setZone = useCart((s) => s.setZone); const key = useRef(crypto.randomUUID());
-  const [f, setF] = useState({ name: '', phone: '', email: '', street: '', houseNo: '', apt: '', entrance: '', floor: '', intercom: '', time: '', comment: '' });
+  const [f, setF] = useState({ name: '', phone: '', street: '', houseNo: '', apt: '', entrance: '', floor: '', intercom: '', time: '', comment: '' });
+  const [accountEmail, setAccountEmail] = useState('');
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  useEffect(() => {
+    let active = true;
+    fetch('/api/me', { cache: 'no-store' }).then(async (r) => {
+      if (!r.ok) {
+        if (active && r.status === 401) setMsg('Для оформления заказа войдите в аккаунт и подтвердите почту.');
+        return null;
+      }
+      return r.json();
+    }).then((profile) => {
+      if (!active || !profile) return;
+      setAccountEmail(profile.email ?? '');
+      setF((old) => ({ ...old, name: profile.name || old.name, phone: profile.phone || old.phone }));
+    }).catch(() => {}).finally(() => { if (active) setProfileLoaded(true); });
+    return () => { active = false; };
+  }, []);
   const [house, setHouse] = useState(false); const [noBell, setNoBell] = useState(false); const [when, setWhen] = useState('asap'); const [pay, setPay] = useState<'cash' | 'transfer' | 'qr'>('cash');
   const [busy, setBusy] = useState(false); const [msg, setMsg] = useState(''); const [tried, setTried] = useState(false);
-  // Если клиент вошёл в кабинет, имя, телефон и почту подставляем сами
-  useEffect(() => { if (account) setF((o) => ({ ...o, name: o.name || account.name || '', phone: o.phone || account.phone || '', email: o.email || account.email || '' })); }, [account]);
   const [zst, setZst] = useState<{ kind: 'idle' | 'busy' | 'ok' | 'out' | 'nf'; text: string }>({ kind: 'idle', text: '' });
   const [token, setToken] = useState(''); const box = useRef<HTMLDivElement>(null); const wid = useRef('');
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
@@ -70,7 +85,6 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
   const errs: Record<string, string> = {};
   if (f.name.trim().length < 2) errs.name = 'Укажите имя';
   if (f.phone.replace(/\D/g, '').length < 10) errs.phone = 'Укажите телефон полностью';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) errs.email = 'Укажите почту, на неё придёт заказ в кабинет';
   if (receive === 'delivery') {
     if (f.street.trim().length < 3) errs.street = 'Укажите улицу';
     if (!f.houseNo.trim()) errs.house = 'Укажите номер дома';
@@ -91,12 +105,21 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
   const send = async () => {
     if (!canOrder || items.length === 0) return;
     if (Object.keys(errs).length) { setTried(true); setMsg(`Заполните обязательные поля: ${Object.values(errs).join('; ')}`); return; }
+    const me = await fetch('/api/me', { cache: 'no-store' });
+    if (me.status === 401 || me.status === 403) {
+      window.location.href = `/login?next=${encodeURIComponent('/cart')}`;
+      return;
+    }
+    if (!me.ok) { setMsg('Не удалось проверить аккаунт. Попробуйте ещё раз.'); return; }
     setBusy(true); setMsg('');
+    const savedProfile = await fetch('/api/me', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: f.name.trim(), phone: f.phone }) });
+    const savedJson = await savedProfile.json().catch(() => ({}));
+    if (!savedProfile.ok) { setBusy(false); setMsg(savedJson.error ?? 'Не удалось сохранить данные аккаунта'); return; }
     const address = [`${f.street.trim()}, д. ${f.houseNo.trim()}`, house ? 'частный дом' : f.apt.trim() && `кв./офис ${f.apt.trim()}`, !house && f.entrance.trim() && `подъезд ${f.entrance.trim()}`, !house && f.floor.trim() && `этаж ${f.floor.trim()}`,
       noBell ? 'домофон не работает' : f.intercom.trim() && `домофон ${f.intercom.trim()}`].filter(Boolean).join(', ');
     const comment = f.comment.trim();
     const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      name: f.name.trim(), phone: f.phone, email: f.email.trim().toLowerCase(), receiveType: receive, address: receive === 'delivery' ? address : undefined, ...(receive === 'delivery' ? { street: f.street.trim(), house: f.houseNo.trim(), privateHouse: house, noBell, apt: f.apt.trim(), entrance: f.entrance.trim(), floor: f.floor.trim(), intercom: f.intercom.trim() } : {}), paymentMethod: pay, comment: comment || undefined,
+      name: f.name.trim(), phone: f.phone, receiveType: receive, address: receive === 'delivery' ? address : undefined, ...(receive === 'delivery' ? { street: f.street.trim(), house: f.houseNo.trim(), privateHouse: house, noBell, apt: f.apt.trim(), entrance: f.entrance.trim(), floor: f.floor.trim(), intercom: f.intercom.trim() } : {}), paymentMethod: pay, comment: comment || undefined,
       idempotencyKey: key.current, turnstileToken: token, promoCode: promoCode || undefined, clientTotal: totals.total,
       ...(when === 'time' && f.time ? { desiredTime: f.time } : {}), ...(receive === 'delivery' && zoneId ? { zoneId } : {}), ...(promoId ? { promoId } : {}), gifts,
       items: items.filter((i) => !i.extra).map((i) => ({ productId: i.productId, label: i.label, qty: i.qty, ...(i.choices?.length ? { choices: i.choices } : {}) })),
@@ -111,13 +134,10 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
   return (
     <div className="mt-6 rounded-[28px] bg-card p-5 shadow-soft" onFocus={(e) => (e.target as HTMLElement).scrollIntoView?.({ block: 'center', behavior: 'smooth' })}>
       <p className="mb-2 text-sm font-bold">{receive === 'delivery' ? 'Доставка' : 'Самовывоз'}</p>
-      {account && !account.email && (
-        <p className="mb-3 rounded-2xl bg-blush px-4 py-3 text-sm font-semibold">Войдите по почте, и мы запомним ваши данные: <a href="/login?next=%2F%23cart" className="font-extrabold text-accent underline">Войти</a></p>
-      )}
+      {accountEmail && <p className="mb-3 text-xs font-semibold text-mute">Аккаунт: {accountEmail} · данные клиента будут сохранены для следующих заказов</p>}
       <div className="grid gap-x-8 gap-y-1 md:grid-cols-2">
         <div><input className={`${line}${bad('name')}`} placeholder="Имя *" autoComplete="name" value={f.name} onChange={set('name')} />{hint('name')}</div>
         <div><input className={`${line}${bad('phone')}`} placeholder="Номер телефона *" type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={set('phone')} />{hint('phone')}</div>
-        <div className="md:col-span-2"><input className={`${line}${bad('email')}`} placeholder="Электронная почта *" type="email" inputMode="email" autoComplete="email" value={f.email} onChange={set('email')} />{hint('email')}<p className="pb-1 text-xs text-mute">Заказ появится в кабинете на этой почте. Войдите на сайт по ней, чтобы видеть свои заказы.</p></div>
         {receive === 'delivery' && (
           <>
             <div><input className={`${line}${bad('street')}`} placeholder="Улица *" autoComplete="address-line1" value={f.street} onChange={set('street')} />{hint('street')}</div>

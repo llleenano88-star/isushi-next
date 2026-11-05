@@ -19,8 +19,6 @@ export default function CartSection({ settings }: { settings: PublicSettings }) 
   const [mounted, setMounted] = useState(false); useEffect(() => setMounted(true), []);
   const [, setTick] = useState(0); useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 30_000); return () => clearInterval(t); }, []); // часы работы и время акций обновляются сами
   const [notice, setNotice] = useState('');
-  const [account, setAccount] = useState<{ email?: string; name?: string; phone?: string } | null>(null); // данные вошедшего клиента
-  useEffect(() => { fetch('/api/me', { cache: 'no-store' }).then((r) => r.json()).then(setAccount).catch(() => setAccount({})); }, []);
   const [form, setForm] = useState(false); const [done, setDone] = useState('');
   const [receive, setReceive] = useState<'delivery' | 'pickup'>('delivery');
   const [promoInput, setPromoInput] = useState(''); const [promo, setPromo] = useState<Applied | null>(null); const [promoMsg, setPromoMsg] = useState(''); const [promoBusy, setPromoBusy] = useState(false);
@@ -172,7 +170,7 @@ export default function CartSection({ settings }: { settings: PublicSettings }) 
           {giftMissing && <p className="mt-3 text-center text-sm font-semibold text-red-500">Выберите подарок по промокоду</p>}
           {!open.open && <p className="mt-3 rounded-2xl bg-[#ffe9ec] px-4 py-3 text-center text-sm font-bold text-[#b3261e]">{open.message}</p>}
           {!form && <button onClick={() => setForm(true)} disabled={!canOrder} className="mx-auto mt-4 flex h-14 w-full max-w-sm items-center justify-center rounded-full bg-brand px-10 text-lg font-bold text-white disabled:opacity-50">Оформить заказ</button>}
-          {form && <Checkout onDone={orderDone} settings={settings} receive={receive} subtotal={subtotal} totals={totals} promoCode={activePromo?.code} canOrder={canOrder} account={account} promoId={eng.selected?.promoId} deliveryPrice={deliveryPrice} freeFrom={freeFrom} zoneId={zone?.id} gifts={chosenGifts.map((g) => ({ promoId: g.promoId, productId: g.productId, label: g.label }))} actionDiscount={eng.discount} />}
+          {form && <Checkout onDone={orderDone} settings={settings} receive={receive} subtotal={subtotal} totals={totals} promoCode={activePromo?.code} canOrder={canOrder} promoId={eng.selected?.promoId} deliveryPrice={deliveryPrice} freeFrom={freeFrom} zoneId={zone?.id} gifts={chosenGifts.map((g) => ({ promoId: g.promoId, productId: g.productId, label: g.label }))} actionDiscount={eng.discount} />}
         </>
       )}
       {phoneBlock}

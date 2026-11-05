@@ -23,14 +23,16 @@ function buildSlots(nowMin: number, lead: number, step: number, workFrom: string
   return out;
 }
 
-export default function Checkout({ onDone, settings, receive, subtotal, totals, promoCode, canOrder, deliveryPrice, freeFrom, zoneId, gifts, actionDiscount, promoId }: {
+export default function Checkout({ onDone, settings, receive, subtotal, totals, promoCode, canOrder, deliveryPrice, freeFrom, zoneId, gifts, actionDiscount, promoId, account }: {
   onDone: (number: string) => void; settings: PublicSettings; receive: 'delivery' | 'pickup'; subtotal: number; totals: TotalsT; promoCode?: string; canOrder: boolean;
-  deliveryPrice: number; freeFrom: number; promoId?: string; zoneId?: string; gifts: { promoId: string; productId: string; label: string }[]; actionDiscount: number;
+  deliveryPrice: number; freeFrom: number; account?: { email?: string; name?: string; phone?: string } | null; promoId?: string; zoneId?: string; gifts: { promoId: string; productId: string; label: string }[]; actionDiscount: number;
 }) {
   const items = useCart((s) => s.items); const setZone = useCart((s) => s.setZone); const key = useRef(crypto.randomUUID());
   const [f, setF] = useState({ name: '', phone: '', email: '', street: '', houseNo: '', apt: '', entrance: '', floor: '', intercom: '', time: '', comment: '' });
   const [house, setHouse] = useState(false); const [noBell, setNoBell] = useState(false); const [when, setWhen] = useState('asap'); const [pay, setPay] = useState<'cash' | 'transfer' | 'qr'>('cash');
   const [busy, setBusy] = useState(false); const [msg, setMsg] = useState(''); const [tried, setTried] = useState(false);
+  // Если клиент вошёл в кабинет, имя, телефон и почту подставляем сами
+  useEffect(() => { if (account) setF((o) => ({ ...o, name: o.name || account.name || '', phone: o.phone || account.phone || '', email: o.email || account.email || '' })); }, [account]);
   const [zst, setZst] = useState<{ kind: 'idle' | 'busy' | 'ok' | 'out' | 'nf'; text: string }>({ kind: 'idle', text: '' });
   const [token, setToken] = useState(''); const box = useRef<HTMLDivElement>(null); const wid = useRef('');
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
@@ -109,6 +111,9 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
   return (
     <div className="mt-6 rounded-[28px] bg-card p-5 shadow-soft" onFocus={(e) => (e.target as HTMLElement).scrollIntoView?.({ block: 'center', behavior: 'smooth' })}>
       <p className="mb-2 text-sm font-bold">{receive === 'delivery' ? 'Доставка' : 'Самовывоз'}</p>
+      {account && !account.email && (
+        <p className="mb-3 rounded-2xl bg-blush px-4 py-3 text-sm font-semibold">Войдите по почте, и мы запомним ваши данные: <a href="/login?next=%2F%23cart" className="font-extrabold text-accent underline">Войти</a></p>
+      )}
       <div className="grid gap-x-8 gap-y-1 md:grid-cols-2">
         <div><input className={`${line}${bad('name')}`} placeholder="Имя *" autoComplete="name" value={f.name} onChange={set('name')} />{hint('name')}</div>
         <div><input className={`${line}${bad('phone')}`} placeholder="Номер телефона *" type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={set('phone')} />{hint('phone')}</div>

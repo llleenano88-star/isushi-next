@@ -13,5 +13,6 @@ export async function GET(req: Request) {
     const proto = (req.headers.get('x-forwarded-proto') ?? 'https').split(',')[0].trim();
     origin = host && !/^(localhost|127\.0\.0\.1)/.test(host) ? `${proto}://${host}` : SITE_URL;
   }
-  return NextResponse.redirect(new URL('/account', origin));
+  const next = url.searchParams.get('next') ?? '/account'; // куда вернуть после входа (например, в корзину)
+  return NextResponse.redirect(new URL(next.startsWith('/') && !next.startsWith('//') ? next : '/account', origin));
 }

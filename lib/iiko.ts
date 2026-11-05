@@ -6,38 +6,9 @@ let cache: { token: string; exp: number } | null = null;
 
 async function token() {
   if (cache && cache.exp > Date.now()) return cache.token;
-
-  // apiLogin — это API-ключ из iiko, appId и clientSecret — из личного кабинета разработчика iiko.
-  const apiKey = process.env.IIKO_API_LOGIN?.trim();
-  const appId = process.env.IIKO_APP_ID?.trim();
-  const clientSecret = process.env.IIKO_CLIENT_SECRET?.trim();
-
-  if (!apiKey) throw new Error('iiko auth: не задан IIKO_API_LOGIN');
-  if (!appId || !clientSecret) throw new Error('iiko auth: не заданы IIKO_APP_ID или IIKO_CLIENT_SECRET');
-
-  // Новая схема авторизации v2
-  const r = await fetch(`${BASE}/api/v2/access_token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ apiKey, appId, clientSecret }),
-    cache: 'no-store',
-  });
-
-  if (!r.ok) {
-    const details = (await r.text())
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 700);
-    throw new Error(`iiko auth ${r.status}${details ? `: ${details}` : ''} (API: ${BASE})`);
-  }
-
-  const data = await r.json();
-  if (typeof data?.token !== 'string' || !data.token) {
-    throw new Error('iiko auth: сервер ответил успешно, но не вернул token');
-  }
-
-  cache = { token: data.token, exp: Date.now() + 50 * 60_000 };
+  const r = await fetch(`${BASE}/api/1/access_token`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apiLogin: process.env.IIKO_API_LOGIN }), cache: 'no-store' });
+  if (!r.ok) throw new Error(`iiko auth ${r.status}`);
+  cache = { token: (await r.json()).token, exp: Date.now() + 50 * 60_000 };
   return cache.token;
 }
 export async function iiko<T = any>(path: string, body: unknown): Promise<T> {
@@ -65,19 +36,35 @@ export async function fetchExternalMenu() {
   }
 }
 
-export async function createDelivery(o: { number: string; phone: string; name: string; receiveType: string; address?: string; comment?: string; paymentMethod: string; note?: string; completeBefore?: string;
+// Терминальная группа: из настроек (IIKO_TERMINAL_GROUP_ID), а если там пусто или неверно, берём первую группу организации из iiko.
+// Без неё iiko пытается выбрать группу сам по адресу, и доставка падает с ошибкой «Unable to automatically assign terminal group».
+let tgCache: string | null = null;
+async function terminalGroupId(): Promise<string | undefined> {
+  const env = (process.env.IIKO_TERMINAL_GROUP_ID ?? '').trim().replace(/^"+|"+$/g, '');
+  if (/^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/.test(env)) return env;
+  if (tgCache) return tgCache;
+  try {
+    const r = await iiko('/api/1/terminal_groups', { organizationIds: [ORG()] });
+    const id = r?.terminalGroups?.[0]?.items?.[0]?.id;
+    if (typeof id === 'string') { tgCache = id; return id; }
+  } catch { /* без группы iiko попробует выбрать сам */ }
+  return undefined;
+}
+
+export async function createDelivery(o: { number: string; phone: string; name: string; receiveType: string; address?: string; comment?: string; paymentMethod: string; note?: string; completeBefore?: string; street?: string; house?: string; flat?: string; entrance?: string; floor?: string; doorphone?: string;
   items: { iikoId: string; sizeId?: string | null; price: number; qty: number; comment?: string }[] }) {
   const delivery = o.receiveType === 'delivery';
   const comment = [o.note, o.comment, delivery && o.address && `Адрес: ${o.address}`, `Оплата: ${o.paymentMethod === 'cash' ? 'наличными при получении' : o.paymentMethod === 'transfer' ? 'переводом при получении' : o.paymentMethod === 'qr' ? 'по QR-коду при получении' : 'переводом или по QR-коду при получении'}`].filter(Boolean).join('. ');
+  const tg = await terminalGroupId();
   const res = await iiko('/api/1/deliveries/create', {
-    organizationId: ORG(), terminalGroupId: process.env.IIKO_TERMINAL_GROUP_ID,
+    organizationId: ORG(), ...(tg ? { terminalGroupId: tg } : {}),
     order: {
       ...(o.completeBefore ? { completeBefore: o.completeBefore } : {}),
       externalNumber: o.number, phone: `+7${o.phone.slice(1)}`, comment,
       orderServiceType: delivery ? 'DeliveryByCourier' : 'DeliveryByClient',
       customer: { name: o.name, type: 'one-time' },
       items: o.items.map((i) => ({ type: 'Product', productId: i.iikoId, amount: i.qty, price: i.price, ...(i.sizeId ? { productSizeId: i.sizeId } : {}), ...(i.comment ? { comment: i.comment } : {}) })),
-      ...(delivery && { deliveryPoint: { address: { street: { name: o.address ?? '', city: process.env.IIKO_CITY ?? '' }, house: '-' } } }),
+      ...(delivery && { deliveryPoint: { address: { street: { name: o.street || o.address || '', city: process.env.IIKO_CITY ?? '' }, house: o.house || '-', ...(o.flat ? { flat: o.flat } : {}), ...(o.entrance ? { entrance: o.entrance } : {}), ...(o.floor ? { floor: o.floor } : {}), ...(o.doorphone ? { doorphone: o.doorphone } : {}) } } }),
     },
   });
   const info = res?.orderInfo;

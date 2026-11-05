@@ -180,6 +180,8 @@ export async function POST(req: Request) {
     ins = await db.from('orders').insert(row).select('id,number').single();
   }
   const { data: order, error } = ins;
+  // Запоминаем имя и телефон в аккаунте, чтобы при следующем заказе не вводить их заново
+  if (user && order) { try { await db.from('profiles').update({ name: b.name, phone: b.phone }).eq('id', user.id); } catch { /* телефон уже занят другим аккаунтом: не страшно */ } }
   if (error?.code === '23505') { // гонка двойного тапа
     await release();
     const again = await db.from('orders').select('id,number').eq('idempotency_key', b.idempotencyKey).single();
@@ -216,6 +218,7 @@ export async function POST(req: Request) {
       ].filter(Boolean).join('. ');
       const iikoId = await createDelivery({ number: order.number, phone: b.phone, name: b.name, receiveType: b.receiveType, address: b.address, comment: b.comment, note,
         paymentMethod: b.paymentMethod,
+        street: b.street, house: b.house, flat: b.apt, entrance: b.entrance, floor: b.floor, doorphone: b.intercom,
         ...(b.desiredTime ? { completeBefore: `${nowI.date} ${b.desiredTime}:00.000` } : {}),
         items: [
           // Время ко времени пишем один раз, под первой позицией («К 22:00»); у остальных блюд только их выбор (острый и т.п.)

@@ -2,6 +2,8 @@ import 'server-only';
 // iiko Cloud API. Только сервер. Ключи — из env без NEXT_PUBLIC_.
 const BASE = process.env.IIKO_API_URL ?? 'https://api-ru.iiko.services';
 const ORG = () => process.env.IIKO_ORGANIZATION_ID!;
+// Selected iiko terminal group for the iSushiClub website (Пугачевский Тракт).
+const TERMINAL_GROUP_ID = 'b7c74be3-7fb3-24e6-0169-c37095bf00cc';
 let cache: { token: string; exp: number } | null = null;
 
 async function token() {
@@ -54,7 +56,7 @@ export async function createDelivery(o: { number: string; phone: string; name: s
   const delivery = o.receiveType === 'delivery';
   const comment = [o.note, o.comment, delivery && o.address && `Адрес: ${o.address}`, `Оплата: ${o.paymentMethod === 'cash' ? 'наличными при получении' : o.paymentMethod === 'transfer' ? 'переводом при получении' : o.paymentMethod === 'qr' ? 'по QR-коду при получении' : 'переводом или по QR-коду при получении'}`].filter(Boolean).join('. ');
   const res = await iiko('/api/1/deliveries/create', {
-    organizationId: ORG(), terminalGroupId: process.env.IIKO_TERMINAL_GROUP_ID,
+    organizationId: ORG(), terminalGroupId: TERMINAL_GROUP_ID,
     order: {
       ...(o.completeBefore ? { completeBefore: o.completeBefore } : {}),
       externalNumber: o.number, phone: `+7${o.phone.slice(1)}`, comment,

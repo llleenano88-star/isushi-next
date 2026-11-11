@@ -17,6 +17,7 @@ const Body = z.object({
   receiveType: z.enum(['delivery', 'pickup']),
   address: z.string().trim().max(200).optional(),
   paymentMethod: z.enum(['cash', 'transfer', 'qr', 'card']), // card оставлен для старых корзин
+  changeFrom: z.number().int().min(0).max(10_000_000).optional(),
   street: z.string().trim().max(120).optional(),
   house: z.string().trim().max(30).optional(),
   privateHouse: z.boolean().optional(), noBell: z.boolean().optional(),
@@ -31,7 +32,8 @@ const Body = z.object({
   zoneId: z.string().uuid().optional(),
   promoId: z.string().uuid().optional(),
   desiredTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-}).refine((b) => b.receiveType === 'pickup' || (!!b.address && !!b.street && !!b.house), { message: 'Укажите улицу и номер дома', path: ['address'] })
+}).refine((b) => b.paymentMethod !== 'cash' || b.changeFrom != null, { message: 'Укажите сумму для подготовки сдачи', path: ['changeFrom'] })
+  .refine((b) => b.receiveType === 'pickup' || (!!b.address && !!b.street && !!b.house), { message: 'Укажите улицу и номер дома', path: ['address'] })
   .refine((b) => b.receiveType === 'pickup' || b.privateHouse || (!!b.apt && !!b.entrance && !!b.floor && (b.noBell || !!b.intercom)), { message: 'Укажите квартиру, подъезд, этаж и домофон', path: ['address'] });
 
 type Line = { product_id: string | null; name: string; variant_label: string | null; price: number; qty: number; iikoId: string | null; sizeId?: string | null; choice?: string | null; rawLabel?: string };
@@ -160,6 +162,8 @@ export async function POST(req: Request) {
   }
 
   const totals = computeTotals({ subtotal, receive: b.receiveType, deliveryPrice, freeFrom, promo, extraDiscount: eng.discount });
+  if (b.paymentMethod === 'cash' && b.changeFrom! < totals.total) return fail(`Сумма для сдачи должна быть не меньше ${totals.total} ₽`, 400);
+  const changeNote = b.paymentMethod === 'cash' && b.changeFrom != null ? `Сдача с ${b.changeFrom} ₽` : '';
   if (b.clientTotal != null && Math.abs(b.clientTotal - totals.total) > 0.01)
     return NextResponse.json({ error: 'Стоимость заказа изменилась. Обновите страницу и проверьте сумму', total: totals.total }, { status: 409 });
 
@@ -175,7 +179,7 @@ export async function POST(req: Request) {
     user_id: user.id, idempotency_key: b.idempotencyKey, number, phone: b.phone, customer_name: b.name,
     receive_type: b.receiveType, address: b.address ? { text: b.address } : null, payment_method: b.paymentMethod,
     products_total: subtotal, delivery_price: totals.delivery, total: totals.total,
-    comment: [b.comment, timeNote, zone ? `Зона: ${zone.name}` : ''].filter(Boolean).join('. ') || null,
+    comment: [b.comment, changeNote, timeNote, zone ? `Зона: ${zone.name}` : ''].filter(Boolean).join('. ') || null,
     promo_code: promo?.code ?? null, discount: totals.discount,
   };
   let ins = await db.from('orders').insert(row).select('id,number').single();
@@ -209,6 +213,7 @@ export async function POST(req: Request) {
       const noIiko = extraLines.filter((l) => !l.iikoId);
       const note = [
         timeNote ? `⏰ ${timeNote.toUpperCase()}` : '', // время первой строкой, чтобы оператор видел его сразу
+        changeNote,
         noIiko.length ? `Доп. (добавить вручную): ${noIiko.map((l) => `${l.name} ×${l.qty}`).join(', ')}` : '',
         lines.some((l) => l.choice) ? `Выбор: ${lines.filter((l) => l.choice).map((l) => `${l.name} — ${l.choice}`).join('; ')}` : '',
         zone ? `Зона: ${zone.name}` : '',

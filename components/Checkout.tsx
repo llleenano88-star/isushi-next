@@ -28,7 +28,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
   deliveryPrice: number; freeFrom: number; promoId?: string; zoneId?: string; gifts: { promoId: string; productId: string; label: string }[]; actionDiscount: number;
 }) {
   const items = useCart((s) => s.items); const setZone = useCart((s) => s.setZone); const key = useRef(crypto.randomUUID());
-  const [f, setF] = useState({ name: '', phone: '', street: '', houseNo: '', apt: '', entrance: '', floor: '', intercom: '', time: '', comment: '' });
+  const [f, setF] = useState({ name: '', phone: '', street: '', houseNo: '', apt: '', entrance: '', floor: '', intercom: '', time: '', comment: '', changeFrom: '' });
   const [accountEmail, setAccountEmail] = useState('');
   const [profileLoaded, setProfileLoaded] = useState(false);
   useEffect(() => {
@@ -97,6 +97,9 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
     }
   }
   if (!timeOk) errs.time = 'Выберите время';
+  const changeAmount = Number(f.changeFrom);
+  if (pay === 'cash' && (!f.changeFrom.trim() || !Number.isSafeInteger(changeAmount) || changeAmount < totals.total))
+    errs.changeFrom = `Укажите сумму не меньше ${totals.total} ₽`;
   if (siteKey && !token) errs.captcha = 'Подтвердите, что вы не робот';
   const bad = (k: string) => (tried && errs[k] ? ' border-red-500' : '');
   const hint = (k: string) => (tried && errs[k] ? <p className="-mt-1 pb-1 text-xs font-semibold text-red-500">{errs[k]}</p> : null);
@@ -119,7 +122,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
       noBell ? 'домофон не работает' : f.intercom.trim() && `домофон ${f.intercom.trim()}`].filter(Boolean).join(', ');
     const comment = f.comment.trim();
     const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      name: f.name.trim(), phone: f.phone, receiveType: receive, address: receive === 'delivery' ? address : undefined, ...(receive === 'delivery' ? { street: f.street.trim(), house: f.houseNo.trim(), privateHouse: house, noBell, apt: f.apt.trim(), entrance: f.entrance.trim(), floor: f.floor.trim(), intercom: f.intercom.trim() } : {}), paymentMethod: pay, comment: comment || undefined,
+      name: f.name.trim(), phone: f.phone, receiveType: receive, address: receive === 'delivery' ? address : undefined, ...(receive === 'delivery' ? { street: f.street.trim(), house: f.houseNo.trim(), privateHouse: house, noBell, apt: f.apt.trim(), entrance: f.entrance.trim(), floor: f.floor.trim(), intercom: f.intercom.trim() } : {}), paymentMethod: pay, ...(pay === 'cash' ? { changeFrom: Number(f.changeFrom) } : {}), comment: comment || undefined,
       idempotencyKey: key.current, turnstileToken: token, promoCode: promoCode || undefined, clientTotal: totals.total,
       ...(when === 'time' && f.time ? { desiredTime: f.time } : {}), ...(receive === 'delivery' && zoneId ? { zoneId } : {}), ...(promoId ? { promoId } : {}), gifts,
       items: items.filter((i) => !i.extra).map((i) => ({ productId: i.productId, label: i.label, qty: i.qty, ...(i.choices?.length ? { choices: i.choices } : {}) })),
@@ -178,6 +181,14 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
       </div>
       <p className="mb-2 mt-5 text-sm font-bold">Способ оплаты</p>
       <div className="flex flex-col gap-2 sm:flex-row">{payBtn('transfer', 'Переводом')}{payBtn('qr', 'QR-кодом')}{payBtn('cash', 'Наличными')}</div>
+      {pay === 'cash' && (
+        <div className="mt-3">
+          <label className="mb-1 block text-sm font-semibold" htmlFor="change-from">Подготовить сдачу с какой суммы? *</label>
+          <input id="change-from" className={`${line}${bad('changeFrom')}`} type="number" min={Math.ceil(totals.total)} step="1" inputMode="numeric" placeholder={`Например, ${Math.max(2000, Math.ceil(totals.total))} ₽`} value={f.changeFrom} onChange={set('changeFrom')} />
+          {hint('changeFrom')}
+          <p className="mt-1 text-xs text-mute">Укажите сумму, с которой вы будете платить. Если сдача не нужна, укажите точную сумму заказа: {totals.total} ₽.</p>
+        </div>
+      )}
       <p className="mt-2 text-xs text-mute">Оплата только при получении заказа</p>
       {siteKey && <div ref={box} className="mt-4 flex justify-center" />}
       {tried && errs.captcha && <p className="mt-1 text-center text-xs font-semibold text-red-500">{errs.captcha}</p>}

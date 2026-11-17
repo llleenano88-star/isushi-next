@@ -7,7 +7,7 @@ import { supabaseSession } from '@/lib/supabase/ssr';
 const S = z.object({
   id: z.string().uuid().optional().or(z.literal('')),
   code: z.string().transform((s) => s.trim().toUpperCase()).pipe(z.string().regex(/^[A-Z0-9_-]{2,32}$/)),
-  discount_type: z.enum(['percent', 'fixed', 'free_delivery']),
+  discount_type: z.enum(['percent', 'fixed']),
   discount_value: z.coerce.number().min(0).max(1_000_000),
   min_order: z.coerce.number().min(0).max(1_000_000),
   expires_at: z.string().optional(),
@@ -21,7 +21,7 @@ export async function savePromo(fd: FormData) {
   const exp = d.expires_at ? new Date(`${d.expires_at}T23:59:59+03:00`) : null;
   const uses = Number(d.max_uses);
   const row = {
-    code: d.code, discount_type: d.discount_type, discount_value: d.discount_type === 'free_delivery' ? 0 : d.discount_value, min_order: d.min_order,
+    code: d.code, discount_type: d.discount_type, discount_value: d.discount_value, min_order: d.min_order,
     expires_at: exp && !Number.isNaN(exp.getTime()) ? exp.toISOString() : null,
     max_uses: d.max_uses && Number.isFinite(uses) && uses >= 1 ? Math.floor(uses) : null,
     active: fd.get('active') === 'on',

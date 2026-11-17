@@ -14,7 +14,7 @@ function Fields({ p }: { p?: any }) {
       <label className={lab}>Код<input name="code" required defaultValue={p?.code} placeholder="WELCOME10" className={`${inp} uppercase`} /></label>
       <label className={lab}>Тип скидки
         <select name="discount_type" defaultValue={p?.discount_type ?? 'percent'} className={inp}>
-          <option value="percent">Процент</option><option value="fixed">Сумма, ₽</option><option value="free_delivery">Бесплатная доставка</option>
+          <option value="percent">Процент</option><option value="fixed">Сумма, ₽</option>
         </select>
       </label>
       <label className={lab}>Размер скидки<input name="discount_value" type="number" step="any" min="0" defaultValue={p?.discount_value ?? 0} className={inp} /></label>

@@ -44,15 +44,10 @@ export async function POST(req: Request) {
   if (!parsed.success) return fail('Проверьте данные заказа', 400);
   const b = parsed.data;
   const session = await supabaseSession();
-  const { data: { user }, error: authError } = await session.auth.getUser();
-  if (authError || !user) return fail('Для оформления заказа войдите в аккаунт', 401);
-  if (!user.email_confirmed_at) return fail('Подтвердите электронную почту перед оформлением заказа', 403);
+  // Аккаунт необязателен: гостевой заказ создаётся с проверенными именем и телефоном из запроса.
+  // Если пользователь вошёл, привязываем заказ к его аккаунту, но не требуем подтверждения email.
+  const { data: { user } } = await session.auth.getUser();
   const db = supabaseAdmin();
-  const { data: profile } = await db.from('profiles').select('name,phone').eq('id', user.id).maybeSingle();
-  // Профиль — источник данных клиента; телефон и имя не берём из произвольного запроса браузера.
-  if (!profile?.name || !profile?.phone) return fail('Заполните имя и телефон в аккаунте', 400);
-  b.name = profile.name;
-  b.phone = profile.phone;
 
   const dup = await db.from('orders').select('id,number').eq('idempotency_key', b.idempotencyKey).maybeSingle();
   if (dup.data) return NextResponse.json({ id: dup.data.id, number: dup.data.number });
@@ -176,10 +171,10 @@ export async function POST(req: Request) {
 
   const number = `S${Date.now().toString(36).toUpperCase().slice(-5)}${Math.floor(Math.random() * 90 + 10)}`;
   const row: Record<string, unknown> = {
-    user_id: user.id, idempotency_key: b.idempotencyKey, number, phone: b.phone, customer_name: b.name,
+    user_id: user?.id ?? null, idempotency_key: b.idempotencyKey, number, phone: b.phone, customer_name: b.name,
     receive_type: b.receiveType, address: b.address ? { text: b.address } : null, payment_method: b.paymentMethod,
     products_total: subtotal, delivery_price: totals.delivery, total: totals.total,
-    comment: [b.comment, changeNote, timeNote, zone ? `Зона: ${zone.name}` : ''].filter(Boolean).join('. ') || null,
+    comment: b.comment?.trim() || null,
     promo_code: promo?.code ?? null, discount: totals.discount,
   };
   let ins = await db.from('orders').insert(row).select('id,number').single();

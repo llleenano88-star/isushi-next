@@ -17,6 +17,7 @@ export async function findPromo(db: SupabaseClient, rawCode: string, subtotal?: 
   const { data, error } = r as { data: any; error: any };
   if (error) return { error: 'Промокоды сейчас недоступны' };
   if (!data || !data.active) return { error: 'Промокод не найден' };
+  if (data.discount_type === 'free_delivery') return { error: 'Этот тип промокода больше не действует' };
   if (data.expires_at && new Date(data.expires_at) < new Date()) return { error: 'Срок действия промокода истёк' };
   // «Один раз на одну почту»: если с этой почты уже был заказ с этим промокодом, отказываем
   if (data.one_per_email && email) {

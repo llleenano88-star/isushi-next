@@ -30,20 +30,18 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
   const items = useCart((s) => s.items); const setZone = useCart((s) => s.setZone); const key = useRef(crypto.randomUUID());
   const [f, setF] = useState({ name: '', phone: '', street: '', houseNo: '', apt: '', entrance: '', floor: '', intercom: '', time: '', comment: '', changeFrom: '' });
   const [accountEmail, setAccountEmail] = useState('');
-  const [profileLoaded, setProfileLoaded] = useState(false);
   useEffect(() => {
+    // Имя и телефон запоминаются только в этом браузере; аккаунт остаётся необязательным.
+    try {
+      const saved = JSON.parse(localStorage.getItem('isushiclub_customer') || '{}');
+      setF((old) => ({ ...old, name: typeof saved.name === 'string' ? saved.name : old.name, phone: typeof saved.phone === 'string' ? saved.phone : old.phone }));
+    } catch { /* повреждённые локальные данные просто игнорируем */ }
     let active = true;
-    fetch('/api/me', { cache: 'no-store' }).then(async (r) => {
-      if (!r.ok) {
-        if (active && r.status === 401) setMsg('Для оформления заказа войдите в аккаунт и подтвердите почту.');
-        return null;
-      }
-      return r.json();
-    }).then((profile) => {
+    fetch('/api/me', { cache: 'no-store' }).then(async (r) => r.ok ? r.json() : null).then((profile) => {
       if (!active || !profile) return;
       setAccountEmail(profile.email ?? '');
-      setF((old) => ({ ...old, name: profile.name || old.name, phone: profile.phone || old.phone }));
-    }).catch(() => {}).finally(() => { if (active) setProfileLoaded(true); });
+      setF((old) => ({ ...old, name: old.name || profile.name || '', phone: old.phone || profile.phone || '' }));
+    }).catch(() => {});
     return () => { active = false; };
   }, []);
   const [house, setHouse] = useState(false); const [noBell, setNoBell] = useState(false); const [when, setWhen] = useState('asap'); const [pay, setPay] = useState<'cash' | 'transfer' | 'qr'>('cash');
@@ -108,16 +106,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
   const send = async () => {
     if (!canOrder || items.length === 0) return;
     if (Object.keys(errs).length) { setTried(true); setMsg(`Заполните обязательные поля: ${Object.values(errs).join('; ')}`); return; }
-    const me = await fetch('/api/me', { cache: 'no-store' });
-    if (me.status === 401 || me.status === 403) {
-      window.location.href = `/login?next=${encodeURIComponent('/cart')}`;
-      return;
-    }
-    if (!me.ok) { setMsg('Не удалось проверить аккаунт. Попробуйте ещё раз.'); return; }
     setBusy(true); setMsg('');
-    const savedProfile = await fetch('/api/me', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: f.name.trim(), phone: f.phone }) });
-    const savedJson = await savedProfile.json().catch(() => ({}));
-    if (!savedProfile.ok) { setBusy(false); setMsg(savedJson.error ?? 'Не удалось сохранить данные аккаунта'); return; }
     const address = [`${f.street.trim()}, д. ${f.houseNo.trim()}`, house ? 'частный дом' : f.apt.trim() && `кв./офис ${f.apt.trim()}`, !house && f.entrance.trim() && `подъезд ${f.entrance.trim()}`, !house && f.floor.trim() && `этаж ${f.floor.trim()}`,
       noBell ? 'домофон не работает' : f.intercom.trim() && `домофон ${f.intercom.trim()}`].filter(Boolean).join(', ');
     const comment = f.comment.trim();
@@ -129,6 +118,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
       extras: items.filter((i) => i.extra).map((i) => ({ id: i.productId, qty: i.qty })) }) });
     const j = await r.json().catch(() => ({})); setBusy(false);
     if (!r.ok) { setMsg(j.error ?? 'Ошибка'); if (wid.current) { (window as any).turnstile.reset(wid.current); setToken(''); } return; }
+    try { localStorage.setItem('isushiclub_customer', JSON.stringify({ name: f.name.trim(), phone: f.phone })); } catch { /* заказ не зависит от доступности localStorage */ }
     onDone(j.number);
   };
   const payBtn = (v: 'cash' | 'transfer' | 'qr', label: string) => (
@@ -137,7 +127,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
   return (
     <div className="mt-6 rounded-[28px] bg-card p-5 shadow-soft" onFocus={(e) => (e.target as HTMLElement).scrollIntoView?.({ block: 'center', behavior: 'smooth' })}>
       <p className="mb-2 text-sm font-bold">{receive === 'delivery' ? 'Доставка' : 'Самовывоз'}</p>
-      {accountEmail && <p className="mb-3 text-xs font-semibold text-mute">Аккаунт: {accountEmail} · данные клиента будут сохранены для следующих заказов</p>}
+      {accountEmail && <p className="mb-3 text-xs font-semibold text-mute">Аккаунт: {accountEmail}</p>}
       <div className="grid gap-x-8 gap-y-1 md:grid-cols-2">
         <div><input className={`${line}${bad('name')}`} placeholder="Имя *" autoComplete="name" value={f.name} onChange={set('name')} />{hint('name')}</div>
         <div><input className={`${line}${bad('phone')}`} placeholder="Номер телефона *" type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={set('phone')} />{hint('phone')}</div>
@@ -183,7 +173,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
       <div className="flex flex-col gap-2 sm:flex-row">{payBtn('transfer', 'Переводом')}{payBtn('qr', 'QR-кодом')}{payBtn('cash', 'Наличными')}</div>
       {pay === 'cash' && (
         <div className="mt-3">
-          <label className="mb-1 block text-sm font-semibold" htmlFor="change-from">Подготовить сдачу с какой суммы? *</label>
+          <label className="mb-1 block text-sm font-semibold" htmlFor="change-from">С какой суммы нужна сдача? *</label>
           <input id="change-from" className={`${line}${bad('changeFrom')}`} type="number" min={Math.ceil(totals.total)} step="1" inputMode="numeric" placeholder={`Например, ${Math.max(2000, Math.ceil(totals.total))} ₽`} value={f.changeFrom} onChange={set('changeFrom')} />
           {hint('changeFrom')}
           <p className="mt-1 text-xs text-mute">Укажите сумму, с которой вы будете платить. Если сдача не нужна, укажите точную сумму заказа: {totals.total} ₽.</p>

@@ -210,13 +210,8 @@ export async function POST(req: Request) {
         timeNote ? `⏰ ${timeNote.toUpperCase()}` : '', // время первой строкой, чтобы оператор видел его сразу
         changeNote,
         noIiko.length ? `Доп. (добавить вручную): ${noIiko.map((l) => `${l.name} ×${l.qty}`).join(', ')}` : '',
-        lines.some((l) => l.choice) ? `Выбор: ${lines.filter((l) => l.choice).map((l) => `${l.name} — ${l.choice}`).join('; ')}` : '',
-        zone ? `Зона: ${zone.name}` : '',
-        eng.discounts.length ? `Акции: ${eng.discounts.map((d) => `${d.title} −${d.amount} ₽`).join('; ')}` : '',
         giftLines.length ? `Подарок: ${giftLines.map((g) => g.name).join(', ')}` : '',
         totals.delivery > 0 && !deliveryIikoId ? `Доставка ${totals.delivery} ₽` : '', // с кодом доставки она уходит отдельной позицией
-        promo ? `Промокод ${promo.code}${totals.discount > 0 ? ` −${totals.discount} ₽` : ' (бесплатная доставка)'}` : '',
-        `К оплате: ${totals.total} ₽`,
       ].filter(Boolean).join('. ');
       const iikoId = await createDelivery({ number: order.number, phone: b.phone, name: b.name, receiveType: b.receiveType, address: b.address, comment: b.comment, note,
         paymentMethod: b.paymentMethod,

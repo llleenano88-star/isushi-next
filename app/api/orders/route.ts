@@ -190,7 +190,33 @@ export async function POST(req: Request) {
   }
   if (error || !order) { await release(); return fail('Не удалось создать заказ', 500); }
 
-  await db.from('order_items').insert([...lines, ...extraLines, ...giftLines].map(({ iikoId, sizeId, choice, rawLabel, ...l }) => ({ ...l, order_id: order.id })));
+  // Акция «N+M» (например, «2 берёшь 1 бесплатно»): бесплатные штуки сохраняются в заказе и уходят в iiko по цене 0, чтобы нигде не считались платными.
+  // Берём самые дешёвые штуки среди подходящих блюд (как считает сама акция). Если сумма не совпала со скидкой акции, ничего не меняем.
+  const freeQty = new Map<number, number>();
+  try {
+    const sel = !b.promoCode && eng.selected ? cs.promos.find((p) => p.id === eng.selected!.promoId) : null;
+    if (sel && sel.kind === 'cheapest_free') {
+      const cf = (sel.config?.filter ?? {}) as { categoryIds?: string[]; productIds?: string[]; labelContains?: string };
+      const n = Math.max(1, Number(sel.config?.buy) || 2); const m = Math.max(1, Number(sel.config?.free) || 1);
+      const fits = (l: EngineLine) => {
+        const cats = cf.categoryIds ?? []; const pr = cf.productIds ?? [];
+        if (pr.length) { if (!pr.includes(l.productId)) return false; } else if (cats.length && !(!!l.categoryId && cats.includes(l.categoryId))) return false;
+        const t = (cf.labelContains ?? '').trim().toLowerCase();
+        return !t || l.label.toLowerCase().includes(t);
+      };
+      const units = engineLines.flatMap((l, i) => (fits(l) ? Array.from({ length: Math.max(0, l.qty) }, () => ({ i, price: l.price })) : [])).sort((x, y) => x.price - y.price);
+      const free = units.slice(0, Math.floor(units.length / (n + m)) * m);
+      if (free.length && Math.abs(free.reduce((s, u) => s + u.price, 0) - eng.discount) < 0.01) free.forEach((u) => freeQty.set(u.i, (freeQty.get(u.i) ?? 0) + 1));
+    }
+  } catch { freeQty.clear(); }
+  const itemRows = [...lines, ...extraLines, ...giftLines].flatMap((l, idx) => {
+    const { iikoId, sizeId, choice, rawLabel, ...rest } = l;
+    const base = { ...rest, order_id: order.id };
+    const free = Math.min(freeQty.get(idx) ?? 0, l.qty); // у блюд индекс совпадает с индексом в lines
+    if (free <= 0) return [base];
+    return [...(l.qty - free > 0 ? [{ ...base, qty: l.qty - free }] : []), { ...base, price: 0, qty: free }];
+  });
+  await db.from('order_items').insert(itemRows);
 
   // Время, зона и акции для админки (колонки из миграции 011; если их нет, заказ всё равно сохранён)
   await db.from('orders').update({
@@ -213,25 +239,6 @@ export async function POST(req: Request) {
         giftLines.length ? `Подарок: ${giftLines.map((g) => g.name).join(', ')}` : '',
         totals.delivery > 0 && !deliveryIikoId ? `Доставка ${totals.delivery} ₽` : '', // с кодом доставки она уходит отдельной позицией
       ].filter(Boolean).join('. ');
-      // Акция «N+M» (например, «2 берёшь 1 бесплатно»): бесплатные штуки уходят в iiko по цене 0, чтобы в чеке они не пробивались как платные.
-      // Берём самые дешёвые штуки среди подходящих блюд (как считает сама акция). Если сумма не совпала со скидкой акции, ничего не меняем.
-      const freeQty = new Map<number, number>();
-      try {
-        const sel = !b.promoCode && eng.selected ? cs.promos.find((p) => p.id === eng.selected!.promoId) : null;
-        if (sel && sel.kind === 'cheapest_free') {
-          const cf = (sel.config?.filter ?? {}) as { categoryIds?: string[]; productIds?: string[]; labelContains?: string };
-          const n = Math.max(1, Number(sel.config?.buy) || 2); const m = Math.max(1, Number(sel.config?.free) || 1);
-          const fits = (l: EngineLine) => {
-            const cats = cf.categoryIds ?? []; const pr = cf.productIds ?? [];
-            if (pr.length) { if (!pr.includes(l.productId)) return false; } else if (cats.length && !(!!l.categoryId && cats.includes(l.categoryId))) return false;
-            const t = (cf.labelContains ?? '').trim().toLowerCase();
-            return !t || l.label.toLowerCase().includes(t);
-          };
-          const units = engineLines.flatMap((l, i) => (fits(l) ? Array.from({ length: Math.max(0, l.qty) }, () => ({ i, price: l.price })) : [])).sort((x, y) => x.price - y.price);
-          const free = units.slice(0, Math.floor(units.length / (n + m)) * m);
-          if (free.length && Math.abs(free.reduce((s, u) => s + u.price, 0) - eng.discount) < 0.01) free.forEach((u) => freeQty.set(u.i, (freeQty.get(u.i) ?? 0) + 1));
-        }
-      } catch { freeQty.clear(); }
       const iikoId = await createDelivery({ number: order.number, phone: b.phone, name: b.name, receiveType: b.receiveType, address: b.address, comment: b.comment, note,
         paymentMethod: b.paymentMethod,
         ...(b.desiredTime ? { completeBefore: `${nowI.date} ${b.desiredTime}:00.000` } : {}),

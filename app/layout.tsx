@@ -8,6 +8,8 @@ import ScrollTop from '@/components/ScrollTop';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import ExtrasPrompt from '@/components/ExtrasPrompt';
 import SearchOverlay from '@/components/SearchOverlay';
+import Footer from '@/components/Footer';
+import CookieBanner from '@/components/CookieBanner';
 import { getSettings } from '@/lib/settings';
 import { SITE_URL } from '@/lib/site';
 
@@ -31,6 +33,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="font-sans antialiased">
         <Header phone={cart.phone} />
         <main className="mx-auto max-w-7xl px-4">{children}<PWAInstallPrompt /></main>
+        <Footer />
+        <CookieBanner />
         <ScrollTop />
         <CartSheet />
         <BottomNav />

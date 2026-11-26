@@ -186,6 +186,7 @@ export default function Checkout({ onDone, settings, receive, subtotal, totals, 
       {settings.deliveryTime && receive === 'delivery' && <p className="mt-3 text-center text-sm text-mute">{settings.deliveryTime}</p>}
       {msg && <p className="mt-3 text-sm text-red-500">{msg}</p>}
       <button onClick={send} disabled={busy || !canOrder} className="mt-4 h-14 w-full rounded-full bg-brand text-lg font-bold text-white disabled:opacity-50">{busy ? 'Отправляем…' : `Подтвердить заказ · ${totals.total} ₽`}</button>
+      <p className="mt-3 text-center text-[11px] leading-4 text-mute">Нажимая кнопку, вы принимаете условия <a href="/oferta" target="_blank" rel="noopener noreferrer" className="underline">Публичной оферты</a>, даёте <a href="/consent" target="_blank" rel="noopener noreferrer" className="underline">согласие на обработку персональных данных</a> и подтверждаете, что ознакомились с <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline">Политикой конфиденциальности</a> и <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline">Условиями доставки и возврата</a></p>
     </div>
   );
 }
